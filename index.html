@@ -514,14 +514,9 @@ body,button,input,select,textarea{
 <script>
 
 const DEFAULT={
- accounts:{bank:82177,paypay:177,cash:10000}, savings:[{id:1,name:"ノイミー落選貯金",amount:10890,goal:10890}],
- card:12031, cardDueDate:null, cardLastProcessedDate:null, settings:{salaryDay:15,prevBusinessDay:true,cardDay:27,cardNextBusiness:true,customHolidays:[],monthlyRemainderGoal:null},
- plans:[
-  {id:2,date:"2026-10-12",name:"イベント",type:"expense",amount:6000,max:10000,status:"confirmed"},
-  {id:3,date:"2026-10-15",name:"給料",type:"income",amount:60000,max:null,status:"confirmed"},
-  {id:4,date:"2026-10-20",name:"東京ドーム（当選時）",type:"expense",amount:20000,max:30000,status:"tentative"},
-  {id:5,date:"2026-11-15",name:"給料",type:"income",amount:45000,max:null,status:"confirmed"}
- ],history:[], recurring:[], privacy:false
+ accounts:{bank:0,paypay:0,cash:0}, savings:[],
+ card:0, cardDueDate:null, cardLastProcessedDate:null, settings:{salaryDay:15,prevBusinessDay:true,cardDay:27,cardNextBusiness:true,customHolidays:[],monthlyRemainderGoal:null},
+ plans:[],history:[],recurring:[],privacy:false
 };
 const STORAGE_KEY="myMoneyDashboardData_v1";
 const CLOUD_CONFIG_KEY="myMoneyCloudConfig_v1";
