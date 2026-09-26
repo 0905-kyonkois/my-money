@@ -3,12 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
-<meta name="theme-color" content="#f4f6f8">
+<meta name="theme-color" content="#dff3ff">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="My Money">
 <title>My Money</title>
-<!-- My Money Dashboard v1.9.0 -->
+<!-- My Money Dashboard v1.9.2 PWA -->
 <style>
 
 *{box-sizing:border-box} :root{--bg:#f4f6f8;--panel:#fff;--text:#17191c;--muted:#7b818a;--line:#e9ebee;--accent:#17191c}
@@ -286,6 +291,14 @@ body,button,input,select,textarea{
 .goalNote{font-size:9px;color:var(--muted);line-height:1.4}
 @media(max-width:600px){.goalCard{padding-top:8px;padding-bottom:8px}.goalMain strong{font-size:18px}.goalMain .available strong{font-size:21px}}
 @media(max-width:600px) and (max-height:740px){#home .goalCard{gap:4px}.goalNote{display:none}.goalTop{line-height:1}}
+
+/* v1.9.3: compact Chappie advice + card withdrawal date */
+.adviceCard{display:grid;gap:5px}
+.adviceHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.adviceHead span{font-size:12px;color:var(--muted)}
+.adviceText{font-size:11px;line-height:1.55;font-weight:650}
+#cardDate{display:block;font-size:8px;color:var(--muted);font-weight:600;margin-top:2px}
+@media(max-width:600px) and (max-height:740px){#home .adviceCard{gap:2px}.adviceText{font-size:10px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
 </style>
 </head>
 <body>
@@ -316,12 +329,17 @@ body,button,input,select,textarea{
       <div class="balanceCell"><span>🏦 口座</span><b data-money id="bank"></b><button class="reconcile" data-account="bank">合わせる</button></div>
       <div class="balanceCell"><span>🟢 PayPay</span><b data-money id="paypay"></b><button class="reconcile" data-account="paypay">合わせる</button></div>
       <div class="balanceCell"><span>💵 現金</span><b data-money id="cash"></b><button class="reconcile" data-account="cash">合わせる</button></div>
-      <div><span>💳 次回カード</span><b data-money id="card"></b></div>
+      <div><span>💳 次回カード</span><b data-money id="card"></b><small id="cardDate"></small></div>
     </section>
 
     <section class="next card">
       <div class="sectionHead"><span>次の予定</span><button id="allPlansBtn">すべての予定 ›</button></div>
       <div id="nextPlan"></div>
+    </section>
+
+    <section class="adviceCard card" id="adviceCard">
+      <div class="adviceHead"><span>💬 ちゃっぴーからひとこと</span></div>
+      <div class="adviceText" id="adviceText" data-money>残高を見てひとこと考え中…</div>
     </section>
 
     <section class="forecast card">
@@ -437,6 +455,8 @@ body,button,input,select,textarea{
   </div>
   <label>基本の給料日<input id="salaryDay" type="number" min="1" max="28" value="15" required></label>
   <label class="checkLabel"><input id="salaryPrevBusiness" type="checkbox" checked> 土日祝なら前営業日にする</label>
+  <label>基本のカード引落日<input id="cardDay" type="number" min="1" max="31" value="27" required></label>
+  <label class="checkLabel"><input id="cardNextBusiness" type="checkbox" checked> 土日祝なら翌営業日にする</label>
   <label>給料日前日時点で残したい金額<input id="monthlyRemainderGoal" type="number" min="0" inputmode="numeric" placeholder="例：100000"></label>
   <small class="privateHint">次の給料日前日までの確定予定・毎月の自動登録を見込んで、「あといくら使えるか」をホームに表示します。</small>
   <label>追加の休業日・祝日（任意）
@@ -461,7 +481,7 @@ body,button,input,select,textarea{
 
 const DEFAULT={
  accounts:{bank:82177,paypay:177,cash:10000}, savings:[{id:1,name:"ノイミー落選貯金",amount:10890,goal:10890}],
- card:12031, settings:{salaryDay:15,prevBusinessDay:true,customHolidays:[],monthlyRemainderGoal:null},
+ card:12031, settings:{salaryDay:15,prevBusinessDay:true,cardDay:27,cardNextBusiness:true,customHolidays:[],monthlyRemainderGoal:null},
  plans:[
   {id:1,date:"2026-09-27",name:"クレジットカード",type:"expense",amount:12031,max:null,status:"confirmed"},
   {id:2,date:"2026-10-12",name:"イベント",type:"expense",amount:6000,max:10000,status:"confirmed"},
@@ -480,9 +500,11 @@ const legacyData=localStorage.getItem("myMoneyData");
 let data=JSON.parse(localStorage.getItem(STORAGE_KEY)||legacyData||"null")||structuredClone(DEFAULT);
 if(!localStorage.getItem(STORAGE_KEY) && legacyData) localStorage.setItem(STORAGE_KEY,legacyData);
 data.savings=(data.savings||[]).map(s=>({...s,goal:s.goal??(s.name==="ノイミー落選貯金"?10890:null)}));
-data.settings=data.settings||{salaryDay:15,prevBusinessDay:true,customHolidays:[],monthlyRemainderGoal:null};
+data.settings=data.settings||{salaryDay:15,prevBusinessDay:true,cardDay:27,cardNextBusiness:true,customHolidays:[],monthlyRemainderGoal:null};
 data.settings.customHolidays=data.settings.customHolidays||[];
 if(data.settings.monthlyRemainderGoal===undefined)data.settings.monthlyRemainderGoal=null;
+if(data.settings.cardDay===undefined)data.settings.cardDay=27;
+if(data.settings.cardNextBusiness===undefined)data.settings.cardNextBusiness=true;
 data.recurring=data.recurring||[];
 data.history=data.history||[];
 data.plans=data.plans||[];
@@ -526,9 +548,11 @@ async function pullCloudData(){
  if(rows[0]?.payload){
    data=rows[0].payload;
    data.recurring=data.recurring||[];data.history=data.history||[];data.plans=data.plans||[];data.savings=data.savings||[];
-   data.settings=data.settings||{salaryDay:15,prevBusinessDay:true,customHolidays:[],monthlyRemainderGoal:null};
+   data.settings=data.settings||{salaryDay:15,prevBusinessDay:true,cardDay:27,cardNextBusiness:true,customHolidays:[],monthlyRemainderGoal:null};
    data.settings.customHolidays=data.settings.customHolidays||[];
    if(data.settings.monthlyRemainderGoal===undefined)data.settings.monthlyRemainderGoal=null;
+if(data.settings.cardDay===undefined)data.settings.cardDay=27;
+if(data.settings.cardNextBusiness===undefined)data.settings.cardNextBusiness=true;
    const recurringChanged=processRecurringTransactions();
    localStorage.setItem(STORAGE_KEY,JSON.stringify(data));render();
    if(recurringChanged)await pushCloudData();
@@ -598,6 +622,31 @@ function getNextPayday(now){
  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
  if(p<today)p=adjustedPayday(now.getFullYear(),now.getMonth()+1);
  return p;
+}
+function adjustedCardDate(year,monthIndex){
+ const configured=Math.max(1,Math.min(31,+data.settings.cardDay||27));
+ let d=new Date(year,monthIndex,Math.min(configured,daysInMonth(year,monthIndex+1)));
+ if(data.settings.cardNextBusiness!==false){
+   while(!isBusinessDay(d))d.setDate(d.getDate()+1);
+ }
+ return d;
+}
+function getNextCardDate(now=new Date()){
+ const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ let d=adjustedCardDate(now.getFullYear(),now.getMonth());
+ if(d<today)d=adjustedCardDate(now.getFullYear(),now.getMonth()+1);
+ return d;
+}
+function isCardPlan(p){return /クレジットカード|カード引落|カード引き落とし/.test(p?.name||"")}
+function getUpcomingCardPlan(){
+ const today=dateKey(new Date());
+ return data.plans.filter(p=>p.status!=="cancelled"&&p.status!=="completed"&&isCardPlan(p)&&p.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0]||null;
+}
+function syncCardPlanDate(){
+ const p=getUpcomingCardPlan(); if(!p)return false;
+ const d=dateKey(getNextCardDate(new Date()));
+ if(p.date!==d){p.date=d;return true}
+ return false;
 }
 
 function daysInMonth(y,m){return new Date(y,m,0).getDate()}
@@ -681,6 +730,31 @@ function projectedSpendableTo(targetDate){
  }
  return projected;
 }
+function chappieAdvice(now=new Date()){
+ const t=totals();
+ const todayKey=dateKey(now);
+ const goalDate=nextRemainderGoalDate(now);
+ const goal=Number(data.settings.monthlyRemainderGoal);
+ if(Number.isFinite(goal)&&goal>0){
+   const projected=projectedSpendableTo(goalDate);
+   const available=projected-goal;
+   if(available<0)return `給料日前日の目標まであと ${yen(Math.abs(available))}。今は追加の出費を少し抑えめにすると安心！`;
+   if(available<=5000)return `給料日前日の目標を守るなら、自由に使えるのはあと ${yen(available)} くらい。ここは慎重モードでいこう👀`;
+   if(available<=15000)return `目標を残して使えるのはあと ${yen(available)}。大きめの買い物だけ一度確認してからがよさそう！`;
+ }
+ const upcoming=data.plans.filter(p=>p.status==="confirmed"&&p.type==="expense"&&p.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date));
+ const next=upcoming[0];
+ if(next){
+   const d=new Date(next.date+"T00:00:00"), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+   const days=Math.round((d-today)/86400000);
+   const amt=next.max||next.amount;
+   if(days<=3&&amt>=5000)return `${days===0?"今日":days===1?"明日":`${days}日後`}に ${yen(amt)} の支払い予定あり。今のうちにその分は残しておこう💰`;
+   if(amt>=10000&&days<=14)return `${fmt(next.date)} に ${yen(amt)} の大きめ支払い予定あり。使えるお金全部を自由枠だと思わないのがコツ！`;
+ }
+ if(t.spendable<10000)return `使えるお金が ${yen(t.spendable)}。次の入金までは必要なもの優先でいこう！`;
+ if(t.spendable>=50000)return `今の使えるお金は ${yen(t.spendable)}。余裕はあるけど、予定分を先に確保しておけばかなり見通しよし👌`;
+ return `使えるお金は ${yen(t.spendable)}。次の予定を見ながら、無理のないペースでいけばOK👌`;
+}
 function render(){
  const t=totals();
  const now=new Date(), days=["日","月","火","水","木","金","土"];
@@ -692,7 +766,11 @@ function render(){
  paydayDays.nextElementSibling.style.display=diff===0?"none":"inline";
  paydayDate.textContent=`${pd.getMonth()+1}/${pd.getDate()} 振込予定`;
  total.innerHTML=yenTotal(t.total); savings.textContent=yen(t.savings); spendable.textContent=yen(t.spendable);
- bank.textContent=yen(data.accounts.bank);paypay.textContent=yen(data.accounts.paypay);cash.textContent=yen(data.accounts.cash);card.textContent=yen(data.card);
+ bank.textContent=yen(data.accounts.bank);paypay.textContent=yen(data.accounts.paypay);cash.textContent=yen(data.accounts.cash);
+ const cardPlan=getUpcomingCardPlan();
+ card.textContent=yen(cardPlan?.amount??data.card);
+ const nextCard=getNextCardDate(now);cardDate.textContent=`${nextCard.getMonth()+1}/${nextCard.getDate()} 引落予定`;
+ adviceText.textContent=chappieAdvice(now);
  savingTotal.textContent=yen(t.savings);forecast.textContent=forecast();
  const goalDate=nextRemainderGoalDate(now);
  const goal=Number(data.settings.monthlyRemainderGoal);
@@ -779,6 +857,8 @@ document.querySelectorAll(".reconcile").forEach(btn=>btn.onclick=()=>{
 settingsBtn.onclick=()=>{
  salaryDay.value=data.settings.salaryDay||15;
  salaryPrevBusiness.checked=data.settings.prevBusinessDay!==false;
+ cardDay.value=data.settings.cardDay||27;
+ cardNextBusiness.checked=data.settings.cardNextBusiness!==false;
  monthlyRemainderGoal.value=data.settings.monthlyRemainderGoal??"";
  renderHolidayList();
  settingsDialog.showModal();
@@ -797,6 +877,9 @@ settingsForm.addEventListener("submit",e=>{
  e.preventDefault();
  data.settings.salaryDay=+salaryDay.value;
  data.settings.prevBusinessDay=salaryPrevBusiness.checked;
+ data.settings.cardDay=Math.max(1,Math.min(31,+cardDay.value||27));
+ data.settings.cardNextBusiness=cardNextBusiness.checked;
+ syncCardPlanDate();
  data.settings.monthlyRemainderGoal=monthlyRemainderGoal.value===""?null:Math.max(0,+monthlyRemainderGoal.value);
  settingsDialog.close();save();
 });
@@ -862,7 +945,7 @@ window.changePlanAmount=id=>{
  const n=Number(mn);if(!Number.isFinite(n)||n<0){alert("正しい金額を入力してください。");return}
  const mx=prompt("最大金額（幅が不要なら空欄）",p.max??"");if(mx===null)return;
  const m=mx===""?null:Number(mx);if(m!==null&&(!Number.isFinite(m)||m<n)){alert("最大金額は最低金額以上にしてください。");return}
- p.amount=n;p.max=m;save();
+ p.amount=n;p.max=m;if(isCardPlan(p))data.card=n;save();
 };
 window.changeRecurringAmount=id=>{
  const r=data.recurring.find(x=>x.id===id);if(!r)return;
@@ -925,11 +1008,22 @@ logoutBtn.onclick=()=>{
  cloudSession=null;localStorage.removeItem(CLOUD_SESSION_KEY);setSyncBadge(false);logoutBtn.hidden=true;
  syncMessage.textContent="同期を解除しました。この端末のデータは残っています。";
 };
+const cardPlanChangedAtStartup=syncCardPlanDate();
 const recurringChangedAtStartup=processRecurringTransactions();
-if(recurringChangedAtStartup)localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+if(cardPlanChangedAtStartup||recurringChangedAtStartup)localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
 if(cloudSession&&cloudConfigured()){setSyncBadge(true);pullCloudData()}else setSyncBadge(false);
 
 render();
+
+// v1.9.3: Chappie advice + card business-day adjustment
+// v1.9.2: PWA / Home Screen app support
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(err => {
+      console.warn("Service Worker registration failed:", err);
+    });
+  });
+}
 
 </script>
 </body>
