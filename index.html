@@ -375,8 +375,8 @@ body,button,input,select,textarea{
     </section>
 
     <section class="forecast card">
-      <div><span>🎯 10/15時点の予測</span><strong data-money id="forecast"></strong></div>
-      <small>登録済み予定から自動計算</small>
+      <div><span>🎯 次の給料日後の残高予測</span><strong data-money id="forecast"></strong></div>
+      <small id="forecastNote">次の給料日までの登録内容から自動計算</small>
     </section>
 
     <section class="goalCard card" id="remainderGoalCard">
@@ -744,13 +744,32 @@ function totals(){
  const savings=data.savings.reduce((a,b)=>a+b.amount,0);
  return {total,savings,spendable:total-savings};
 }
-function forecast(target="2026-10-15"){
+function forecastAfterNextPayday(now=new Date()){
+ const payday=getNextPayday(now);
+ const targetKey=dateKey(payday);
+ const todayKey=dateKey(new Date(now.getFullYear(),now.getMonth(),now.getDate()));
  let {total}=totals(), lo=total, hi=total;
- data.plans.filter(p=>p.status==="confirmed"&&p.date<=target).forEach(p=>{
-   if(p.type==="income"){lo+=p.amount;hi+=p.max||p.amount}
-   else {lo-=p.max||p.amount;hi-=p.amount}
+ // Card withdrawal is automatic, so include it even though it is not in plans.
+ if(Number(data.card)>0&&data.cardDueDate&&data.cardDueDate>=todayKey&&data.cardDueDate<=targetKey){
+   lo-=Number(data.card);hi-=Number(data.card);
+ }
+ // Include confirmed plans through the next payday. Income on payday (e.g. salary) is included.
+ data.plans.filter(p=>p.status==="confirmed"&&p.date>=todayKey&&p.date<=targetKey).forEach(p=>{
+   if(p.type==="income"){lo+=Number(p.amount)||0;hi+=Number(p.max||p.amount)||0}
+   else {lo-=Number(p.max||p.amount)||0;hi-=Number(p.amount)||0}
  });
- return lo===hi?yen(lo):`${yen(lo)}〜${yen(hi)}`;
+ // Include monthly auto registrations that will happen by the next payday.
+ for(const r of data.recurring.filter(x=>x.active!==false)){
+   let occurrence=r.nextDate;let guard=0;
+   while(occurrence&&occurrence<=targetKey&&guard++<24){
+     if(occurrence>=todayKey){
+       const amount=Number(r.amount)||0;
+       if(r.type==="income"){lo+=amount;hi+=amount}else{lo-=amount;hi-=amount}
+     }
+     occurrence=nextMonthlyDate(occurrence,r.day);
+   }
+ }
+ return {text:lo===hi?yen(lo):`${yen(lo)}〜${yen(hi)}`,payday};
 }
 function nextRemainderGoalDate(now=new Date()){
  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
@@ -832,7 +851,10 @@ function render(){
  card.textContent=Number(data.card)>0?yen(data.card):"未設定";
  const nextCard=getCardDueDate();cardDate.textContent=`${nextCard.getMonth()+1}/${nextCard.getDate()} 引落予定`;
  adviceText.textContent=chappieAdvice(now);
- savingTotal.textContent=yen(t.savings);forecast.textContent=forecast();
+ savingTotal.textContent=yen(t.savings);
+ const nextPayForecast=forecastAfterNextPayday(now);
+ forecast.textContent=nextPayForecast.text;
+ forecastNote.textContent=`次の給料日 ${nextPayForecast.payday.getMonth()+1}/${nextPayForecast.payday.getDate()} までの確定予定・カード・毎月登録から自動計算`;
  const goalDate=nextRemainderGoalDate(now);
  const goal=Number(data.settings.monthlyRemainderGoal);
  goalTargetDate.textContent=`次の目標日 ${goalDate.getMonth()+1}/${goalDate.getDate()}`;
