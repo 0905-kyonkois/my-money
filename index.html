@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="My Money">
 <title>My Money</title>
+<!-- My Money Dashboard v1.8.4 -->
 <style>
 
 *{box-sizing:border-box} :root{--bg:#f4f6f8;--panel:#fff;--text:#17191c;--muted:#7b818a;--line:#e9ebee;--accent:#17191c}
@@ -182,14 +183,31 @@ header.topHeader{width:100%}
   gap:.10em;
 }
 #total .totalNumber{
+  font-family:"Hiragino Sans","ヒラギノ角ゴシック","Hiragino Kaku Gothic ProN","Hiragino Kaku Gothic Pro",sans-serif;
   font-size:1em;
-  font-weight:850;
+  font-weight:700; /* W7相当 */
   letter-spacing:-1.5px;
 }
 #total .totalYen{
+  font-family:"Hiragino Sans","ヒラギノ角ゴシック","Hiragino Kaku Gothic ProN","Hiragino Kaku Gothic Pro",sans-serif;
   font-size:.42em;
-  font-weight:700;
+  font-weight:700; /* W7相当 */
   letter-spacing:0;
+}
+
+/* v1.8.3: settings/privacy buttons are easier to see and tap; cloud stays compact */
+#settingsBtn,#privacyBtn{
+  font-size:19px;
+  width:30px;
+  height:25px;
+  padding:1px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+}
+@media (max-width:600px){
+  #settingsBtn,#privacyBtn{font-size:18px;width:29px;height:24px}
 }
 
 /* v1.6 typography */
@@ -222,6 +240,21 @@ body,button,input,select,textarea{
 
 .cloudSetup{display:grid;gap:8px;padding:10px;border-radius:13px;background:#f4f6f8}
 .cloudSetup>b{font-size:12px}.cloudSetup small{font-size:9px;color:var(--muted);line-height:1.45}
+
+/* v1.8.6: individually hidden descriptions use the same blur treatment as hidden money */
+/* v1.8.5: clearer eye icon for global money visibility */
+/* v1.8.4: hide individual transaction/plan descriptions */
+.privateCheck{
+  display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:12px;
+  background:#f4f6f8;color:var(--text);font-size:12px;font-weight:650;
+}
+.privateCheck input{width:auto;margin:0;accent-color:#17191c}
+.privateHint{color:var(--muted);font-size:9px;line-height:1.45;margin-top:-5px}
+.item .privateToggle{
+  border:1px solid var(--line);background:#fff;border-radius:9px;padding:5px 8px;
+  font-size:11px;line-height:1;cursor:pointer
+}
+.privateName{filter:blur(7px);user-select:none;display:inline-block}
 </style>
 </head>
 <body>
@@ -236,7 +269,7 @@ body,button,input,select,textarea{
         <div><strong id="paydayDays">--</strong><em>日</em></div>
         <small id="paydayDate"></small>
       </div>
-      <div class="headerActions"><button class="icon" id="syncBtn" title="同期">☁</button><button class="icon" id="settingsBtn" title="設定">⚙</button><button class="icon" id="privacyBtn" title="金額を隠す">◉</button></div>
+      <div class="headerActions"><button class="icon" id="syncBtn" title="同期">☁</button><button class="icon" id="settingsBtn" title="設定">⚙</button><button class="icon" id="privacyBtn" title="金額を隠す" aria-label="金額を隠す">👁️</button></div>
     </header>
 
   <main id="home" class="page active">
@@ -287,6 +320,8 @@ body,button,input,select,textarea{
   <label>金額（最大・任意）<input id="txMax" type="number" min="1" inputmode="numeric" placeholder="例：10000"></label>
   <small style="color:var(--muted);margin-top:-6px">まだ金額が決まっていないときは「6,000〜10,000円」のように幅を持たせて登録できます。</small>
   <label>名前<input id="txName" required placeholder="例：コンビニ"></label>
+  <label class="privateCheck"><input id="txHideName" type="checkbox"> この内容を隠す 🙈</label>
+  <small class="privateHint">履歴では件名だけをぼかして表示します。金額・日付はそのまま確認できます。</small>
   <label>支払元<select id="txAccount"><option value="bank">口座</option><option value="paypay">PayPay</option><option value="cash">現金</option></select></label>
   <label>日付<input id="txDate" type="date" required></label>
   <button class="primary" value="default">登録する</button>
@@ -298,6 +333,8 @@ body,button,input,select,textarea{
   <div class="modalHead"><h3>予定を追加</h3><button type="button" class="dialogClose" aria-label="閉じる">×</button></div>
   <label>日付<input id="planDate" type="date" required></label>
   <label>名前<input id="planName" required placeholder="例：ライブ"></label>
+  <label class="privateCheck"><input id="planHideName" type="checkbox"> この内容を隠す 🙈</label>
+  <small class="privateHint">予定一覧やホームでは件名だけをぼかして表示します。</small>
   <label>種類<select id="planType"><option value="expense">支出</option><option value="income">収入</option></select></label>
   <label>金額（最低）<input id="planAmount" type="number" min="0" required inputmode="numeric" placeholder="例：6000"></label>
   <label>金額（最大・任意）<input id="planMax" type="number" min="0" inputmode="numeric" placeholder="例：10000"></label>
@@ -526,11 +563,14 @@ function render(){
  bank.textContent=yen(data.accounts.bank);paypay.textContent=yen(data.accounts.paypay);cash.textContent=yen(data.accounts.cash);card.textContent=yen(data.card);
  savingTotal.textContent=yen(t.savings);forecast.textContent=forecast();
  document.body.classList.toggle("hiddenMoney",data.privacy);
+ privacyBtn.textContent=data.privacy?"🙈":"👁️";
+ privacyBtn.title=data.privacy?"金額を表示する":"金額を隠す";
+ privacyBtn.setAttribute("aria-label",data.privacy?"金額を表示する":"金額を隠す");
  const upcoming=data.plans.filter(p=>p.status!=="cancelled"&&new Date(p.date+"T23:59:59")>=new Date()).sort((a,b)=>a.date.localeCompare(b.date));
  const p=upcoming[0];
- nextPlan.innerHTML=p?`<div class="nextRow"><div class="date">${fmt(p.date)}</div><div class="name">${p.name}${p.status==="tentative"?" <small>未確定</small>":""}</div><div class="amount" data-money>${p.type==="income"?"+":"−"} ${p.max?yen(p.amount)+"〜"+yen(p.max):yen(p.amount)}</div></div>`:`<div style="padding:12px 0;color:#888">予定はありません</div>`;
- planList.innerHTML=upcoming.map(p=>`<div class="item"><div><b>${fmt(p.date)}　${p.name}</b><br><small>${p.status==="tentative"?"未確定":"確定"}</small></div><div class="amt" data-money>${p.type==="income"?"+":"−"}${p.max?yen(p.amount)+"〜"+yen(p.max):yen(p.amount)}</div><div class="actions"><button onclick="completePlan(${p.id})">完了</button><button onclick="cancelPlan(${p.id})">キャンセル</button></div></div>`).join("");
- historyList.innerHTML=data.history.length?data.history.slice().reverse().map(h=>`<div class="item"><div><b>${h.name}</b><br><small>${fmt(h.date)}・${h.account||""}</small></div><div class="amt" data-money>${h.type==="income"?"+":"−"}${yen(h.amount)}</div></div>`).join(""):`<div class="card"><small>まだ履歴はありません。</small></div>`;
+ nextPlan.innerHTML=p?`<div class="nextRow"><div class="date">${fmt(p.date)}</div><div class="name"><span class="${p.hiddenName?"privateName":""}">${p.name}</span>${p.status==="tentative"?" <small>未確定</small>":""}</div><div class="amount" data-money>${p.type==="income"?"+":"−"} ${p.max?yen(p.amount)+"〜"+yen(p.max):yen(p.amount)}</div></div>`:`<div style="padding:12px 0;color:#888">予定はありません</div>`;
+ planList.innerHTML=upcoming.map(p=>`<div class="item"><div><b>${fmt(p.date)}　<span class="${p.hiddenName?"privateName":""}">${p.name}</span></b><br><small>${p.status==="tentative"?"未確定":"確定"}</small></div><div class="amt" data-money>${p.type==="income"?"+":"−"}${p.max?yen(p.amount)+"〜"+yen(p.max):yen(p.amount)}</div><div class="actions"><button onclick="completePlan(${p.id})">完了</button><button onclick="cancelPlan(${p.id})">キャンセル</button><button class="privateToggle" onclick="togglePlanName(${p.id})" title="内容の表示を切り替え">${p.hiddenName?"👁 表示":"🙈 隠す"}</button></div></div>`).join("");
+ historyList.innerHTML=data.history.length?data.history.slice().reverse().map(h=>`<div class="item"><div><b class="${h.hiddenName?"privateName":""}">${h.name}</b><br><small>${fmt(h.date)}・${h.account||""}</small></div><div class="amt" data-money>${h.type==="income"?"+":"−"}${yen(h.amount)}</div><div class="actions"><button class="privateToggle" onclick="toggleHistoryName(${h.id})" title="内容の表示を切り替え">${h.hiddenName?"👁 表示":"🙈 隠す"}</button></div></div>`).join(""):`<div class="card"><small>まだ履歴はありません。</small></div>`;
  savingList.innerHTML=data.savings.map(s=>{
  const pct=s.goal?Math.min(100,Math.round(s.amount/s.goal*100)):null;
  return `<div class="item">
@@ -605,10 +645,10 @@ moneyForm.addEventListener("submit",e=>{
  const a=+txAmount.value, mx=txMax.value?+txMax.value:null;if(!a)return;
  const type=txType.value,acct=txAccount.value;
  if(mx && mx>=a){
-   data.plans.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,max:mx,status:"confirmed",account:acct});
+   data.plans.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,max:mx,status:"confirmed",account:acct,hiddenName:txHideName.checked});
  }else{
    data.accounts[acct]+=type==="income"?a:-a;
-   data.history.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,account:acct});
+   data.history.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,account:acct,hiddenName:txHideName.checked});
  }
  moneyDialog.close();moneyForm.reset();save()
 });
@@ -616,10 +656,10 @@ planForm.addEventListener("submit",e=>{
  if(e.submitter?.value==="cancel")return;e.preventDefault();
  const mn=+planAmount.value,mx=planMax.value?+planMax.value:null;
  if(mx!==null && mx<mn){alert("最大金額は最低金額以上にしてください。");return}
- data.plans.push({id:Date.now(),date:planDate.value,name:planName.value,type:planType.value,amount:mn,max:mx,status:planStatus.value});
+ data.plans.push({id:Date.now(),date:planDate.value,name:planName.value,type:planType.value,amount:mn,max:mx,status:planStatus.value,hiddenName:planHideName.checked});
  planDialog.close();planForm.reset();save()
 });
-window.completePlan=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;let actual=prompt("実際の金額を入力してください",p.amount);if(actual===null)return;actual=+actual;if(!Number.isFinite(actual))return;const acct=prompt("支払元/入金先：bank / paypay / cash","bank");if(!["bank","paypay","cash"].includes(acct))return;data.accounts[acct]+=p.type==="income"?actual:-actual;data.history.push({id:Date.now(),date:p.date,name:p.name,type:p.type,amount:actual,account:acct});p.status="completed";save()};
+window.completePlan=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;let actual=prompt("実際の金額を入力してください",p.amount);if(actual===null)return;actual=+actual;if(!Number.isFinite(actual))return;const acct=prompt("支払元/入金先：bank / paypay / cash","bank");if(!["bank","paypay","cash"].includes(acct))return;data.accounts[acct]+=p.type==="income"?actual:-actual;data.history.push({id:Date.now(),date:p.date,name:p.name,type:p.type,amount:actual,account:acct,hiddenName:!!p.hiddenName});p.status="completed";save()};
 savingForm.addEventListener("submit",e=>{
  if(e.submitter?.value==="cancel")return;
  e.preventDefault();
@@ -635,6 +675,8 @@ window.deleteSaving=id=>{
  const s=data.savings.find(x=>x.id===id);if(!s)return;
  if(confirm(`${s.name} を削除しますか？\n※総資産そのものは変わりません。`)){data.savings=data.savings.filter(x=>x.id!==id);save()}
 };
+window.toggleHistoryName=id=>{const h=data.history.find(x=>x.id===id);if(!h)return;h.hiddenName=!h.hiddenName;save()};
+window.togglePlanName=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;p.hiddenName=!p.hiddenName;save()};
 window.cancelPlan=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;if(confirm("この予定をキャンセルしますか？")){p.status="cancelled";save()}};
 
 syncBtn.onclick=()=>{
