@@ -1,12 +1,12 @@
-const CACHE_NAME = "my-money-v1.9.7";
+const CACHE_NAME = "my-money-v1.9.8";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./manifest.webmanifest",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./icon-maskable-512.png",
-  "./apple-touch-icon.png"
+  "./manifest-v198.webmanifest",
+  "./icon-wallet-192-v198.png",
+  "./icon-wallet-512-v198.png",
+  "./icon-wallet-maskable-512-v198.png",
+  "./apple-touch-icon-wallet-v198.png"
 ];
 
 self.addEventListener("install", event => {

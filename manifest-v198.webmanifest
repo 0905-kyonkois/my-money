@@ -1,0 +1,33 @@
+{
+  "id": "./",
+  "name": "My Money",
+  "short_name": "My Money",
+  "description": "自分のお金をひと目で確認できるパーソナル資産ダッシュボード",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#dff3ff",
+  "theme_color": "#dff3ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icon-wallet-192-v198.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-wallet-512-v198.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-wallet-maskable-512-v198.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
