@@ -458,6 +458,8 @@ body,button,input,select,textarea{
   </div>
   <label>基本の給料日<input id="salaryDay" type="number" min="1" max="28" value="15" required></label>
   <label class="checkLabel"><input id="salaryPrevBusiness" type="checkbox" checked> 土日祝なら前営業日にする</label>
+  <label>次回のカード引落額<input id="cardAmount" type="number" min="0" inputmode="numeric" placeholder="例：12031"></label>
+  <small class="privateHint">予定には追加せず、引落日になったら口座から自動で差し引いて履歴に記録します。</small>
   <label>基本のカード引落日<input id="cardDay" type="number" min="1" max="31" value="27" required></label>
   <label class="checkLabel"><input id="cardNextBusiness" type="checkbox" checked> 土日祝なら翌営業日にする</label>
   <label>給料日前日時点で残したい金額<input id="monthlyRemainderGoal" type="number" min="0" inputmode="numeric" placeholder="例：100000"></label>
@@ -484,9 +486,8 @@ body,button,input,select,textarea{
 
 const DEFAULT={
  accounts:{bank:82177,paypay:177,cash:10000}, savings:[{id:1,name:"ノイミー落選貯金",amount:10890,goal:10890}],
- card:12031, settings:{salaryDay:15,prevBusinessDay:true,cardDay:27,cardNextBusiness:true,customHolidays:[],monthlyRemainderGoal:null},
+ card:12031, cardDueDate:null, cardLastProcessedDate:null, settings:{salaryDay:15,prevBusinessDay:true,cardDay:27,cardNextBusiness:true,customHolidays:[],monthlyRemainderGoal:null},
  plans:[
-  {id:1,date:"2026-09-27",name:"クレジットカード",type:"expense",amount:12031,max:null,status:"confirmed"},
   {id:2,date:"2026-10-12",name:"イベント",type:"expense",amount:6000,max:10000,status:"confirmed"},
   {id:3,date:"2026-10-15",name:"給料",type:"income",amount:60000,max:null,status:"confirmed"},
   {id:4,date:"2026-10-20",name:"東京ドーム（当選時）",type:"expense",amount:20000,max:30000,status:"tentative"},
@@ -556,9 +557,11 @@ async function pullCloudData(){
    if(data.settings.monthlyRemainderGoal===undefined)data.settings.monthlyRemainderGoal=null;
 if(data.settings.cardDay===undefined)data.settings.cardDay=27;
 if(data.settings.cardNextBusiness===undefined)data.settings.cardNextBusiness=true;
+   const cardMigrated=migrateCardPlanToAuto();
    const recurringChanged=processRecurringTransactions();
+   const cardChanged=processCardWithdrawal();
    localStorage.setItem(STORAGE_KEY,JSON.stringify(data));render();
-   if(recurringChanged)await pushCloudData();
+   if(cardMigrated||recurringChanged||cardChanged)await pushCloudData();
    return true
  }
  await pushCloudData();return true;
@@ -641,15 +644,38 @@ function getNextCardDate(now=new Date()){
  return d;
 }
 function isCardPlan(p){return /クレジットカード|カード引落|カード引き落とし/.test(p?.name||"")}
-function getUpcomingCardPlan(){
- const today=dateKey(new Date());
- return data.plans.filter(p=>p.status!=="cancelled"&&p.status!=="completed"&&isCardPlan(p)&&p.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0]||null;
+function migrateCardPlanToAuto(){
+ const cardPlans=data.plans.filter(p=>isCardPlan(p)&&p.status!=="cancelled"&&p.status!=="completed").sort((a,b)=>a.date.localeCompare(b.date));
+ let changed=false;
+ if(cardPlans.length){
+   const p=cardPlans[0];
+   data.card=Number(p.amount)||Number(data.card)||0;
+   data.cardDueDate=dateKey(getNextCardDate(new Date()));
+   changed=true;
+ }
+ const before=data.plans.length;
+ data.plans=data.plans.filter(p=>!isCardPlan(p));
+ if(data.plans.length!==before)changed=true;
+ if(!data.cardDueDate){data.cardDueDate=dateKey(getNextCardDate(new Date()));changed=true}
+ return changed;
 }
-function syncCardPlanDate(){
- const p=getUpcomingCardPlan(); if(!p)return false;
- const d=dateKey(getNextCardDate(new Date()));
- if(p.date!==d){p.date=d;return true}
- return false;
+function processCardWithdrawal(){
+ if(!data.cardDueDate)data.cardDueDate=dateKey(getNextCardDate(new Date()));
+ const today=dateKey(new Date());
+ const amount=Math.max(0,Number(data.card)||0);
+ if(amount<=0||data.cardDueDate>today||data.cardLastProcessedDate===data.cardDueDate)return false;
+ const due=data.cardDueDate;
+ data.accounts.bank-=amount;
+ data.history.push({id:Date.now(),date:due,name:"クレジットカード引落",type:"expense",amount,account:"bank",autoCard:true});
+ data.cardLastProcessedDate=due;
+ data.card=0;
+ const d=new Date(due+"T00:00:00");
+ data.cardDueDate=dateKey(adjustedCardDate(d.getFullYear(),d.getMonth()+1));
+ return true;
+}
+function getCardDueDate(){
+ if(!data.cardDueDate)data.cardDueDate=dateKey(getNextCardDate(new Date()));
+ return new Date(data.cardDueDate+"T00:00:00");
 }
 
 function daysInMonth(y,m){return new Date(y,m,0).getDate()}
@@ -719,6 +745,8 @@ function projectedSpendableTo(targetDate){
  let projected=t.spendable;
  const todayKey=dateKey(new Date());
  const targetKey=dateKey(targetDate);
+ // Card withdrawal is automatic and is not stored as a plan.
+ if(Number(data.card)>0&&data.cardDueDate&&data.cardDueDate>=todayKey&&data.cardDueDate<=targetKey)projected-=Number(data.card);
  // Confirmed plans: use the safer side of ranges (minimum income / maximum expense).
  data.plans.filter(p=>p.status==="confirmed"&&p.date>=todayKey&&p.date<=targetKey).forEach(p=>{
    projected+=p.type==="income"?p.amount:-(p.max||p.amount);
@@ -745,6 +773,13 @@ function chappieAdvice(now=new Date()){
    if(available<=5000)return `給料日前日の目標を守るなら、自由に使えるのはあと ${yen(available)} くらい。ここは慎重モードでいこう👀`;
    if(available<=15000)return `目標を残して使えるのはあと ${yen(available)}。大きめの買い物だけ一度確認してからがよさそう！`;
  }
+ const cardAmt=Math.max(0,Number(data.card)||0);
+ if(cardAmt>0&&data.cardDueDate&&data.cardDueDate>=todayKey){
+   const d=new Date(data.cardDueDate+"T00:00:00"), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+   const days=Math.round((d-today)/86400000);
+   if(days<=3)return `${days===0?"今日":days===1?"明日":`${days}日後`}にカード ${yen(cardAmt)} が口座から自動引落し。先に残しておこう💳`;
+   if(cardAmt>=10000&&days<=14)return `${fmt(data.cardDueDate)} にカード ${yen(cardAmt)} の自動引落し予定あり。口座残高を確保しておこう！`;
+ }
  const upcoming=data.plans.filter(p=>p.status==="confirmed"&&p.type==="expense"&&p.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date));
  const next=upcoming[0];
  if(next){
@@ -770,9 +805,8 @@ function render(){
  paydayDate.textContent=`${pd.getMonth()+1}/${pd.getDate()} 振込予定`;
  total.innerHTML=yenTotal(t.total); savings.textContent=yen(t.savings); spendable.textContent=yen(t.spendable);
  bank.textContent=yen(data.accounts.bank);paypay.textContent=yen(data.accounts.paypay);cash.textContent=yen(data.accounts.cash);
- const cardPlan=getUpcomingCardPlan();
- card.textContent=yen(cardPlan?.amount??data.card);
- const nextCard=getNextCardDate(now);cardDate.textContent=`${nextCard.getMonth()+1}/${nextCard.getDate()} 引落予定`;
+ card.textContent=Number(data.card)>0?yen(data.card):"未設定";
+ const nextCard=getCardDueDate();cardDate.textContent=`${nextCard.getMonth()+1}/${nextCard.getDate()} 引落予定`;
  adviceText.textContent=chappieAdvice(now);
  savingTotal.textContent=yen(t.savings);forecast.textContent=forecast();
  const goalDate=nextRemainderGoalDate(now);
@@ -860,6 +894,7 @@ document.querySelectorAll(".reconcile").forEach(btn=>btn.onclick=()=>{
 settingsBtn.onclick=()=>{
  salaryDay.value=data.settings.salaryDay||15;
  salaryPrevBusiness.checked=data.settings.prevBusinessDay!==false;
+ cardAmount.value=Number(data.card)||"";
  cardDay.value=data.settings.cardDay||27;
  cardNextBusiness.checked=data.settings.cardNextBusiness!==false;
  monthlyRemainderGoal.value=data.settings.monthlyRemainderGoal??"";
@@ -880,10 +915,12 @@ settingsForm.addEventListener("submit",e=>{
  e.preventDefault();
  data.settings.salaryDay=+salaryDay.value;
  data.settings.prevBusinessDay=salaryPrevBusiness.checked;
+ data.card=cardAmount.value===""?0:Math.max(0,+cardAmount.value||0);
  data.settings.cardDay=Math.max(1,Math.min(31,+cardDay.value||27));
  data.settings.cardNextBusiness=cardNextBusiness.checked;
- syncCardPlanDate();
+ if(!data.cardDueDate||data.cardLastProcessedDate===data.cardDueDate){data.cardDueDate=dateKey(getNextCardDate(new Date()))}
  data.settings.monthlyRemainderGoal=monthlyRemainderGoal.value===""?null:Math.max(0,+monthlyRemainderGoal.value);
+ processCardWithdrawal();
  settingsDialog.close();save();
 });
 
@@ -958,7 +995,7 @@ window.changePlanAmount=id=>{
  const n=Number(mn);if(!Number.isFinite(n)||n<0){alert("正しい金額を入力してください。");return}
  const mx=prompt("最大金額（幅が不要なら空欄）",p.max??"");if(mx===null)return;
  const m=mx===""?null:Number(mx);if(m!==null&&(!Number.isFinite(m)||m<n)){alert("最大金額は最低金額以上にしてください。");return}
- p.amount=n;p.max=m;if(isCardPlan(p))data.card=n;save();
+ p.amount=n;p.max=m;save();
 };
 window.changeRecurringAmount=id=>{
  const r=data.recurring.find(x=>x.id===id);if(!r)return;
@@ -1021,13 +1058,15 @@ logoutBtn.onclick=()=>{
  cloudSession=null;localStorage.removeItem(CLOUD_SESSION_KEY);setSyncBadge(false);logoutBtn.hidden=true;
  syncMessage.textContent="同期を解除しました。この端末のデータは残っています。";
 };
-const cardPlanChangedAtStartup=syncCardPlanDate();
+const cardMigratedAtStartup=migrateCardPlanToAuto();
 const recurringChangedAtStartup=processRecurringTransactions();
-if(cardPlanChangedAtStartup||recurringChangedAtStartup)localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+const cardChangedAtStartup=processCardWithdrawal();
+if(cardMigratedAtStartup||recurringChangedAtStartup||cardChangedAtStartup)localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
 if(cloudSession&&cloudConfigured()){setSyncBadge(true);pullCloudData()}else setSyncBadge(false);
 
 render();
 
+// v1.9.5: automatic credit-card withdrawal (not stored as a plan)
 // v1.9.3: Chappie advice + card business-day adjustment
 // v1.9.2: PWA / Home Screen app support
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
