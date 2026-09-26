@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#f4f6f8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="My Money">
+<title>My Money</title>
+<style>
+
+*{box-sizing:border-box} :root{--bg:#f4f6f8;--panel:#fff;--text:#17191c;--muted:#7b818a;--line:#e9ebee;--accent:#17191c}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+button,input,select{font:inherit}.icon,nav button,.sectionHead button,.modalHead button{border:0;background:none;color:inherit}
+#app{width:min(100%,520px);margin:auto;min-height:100dvh;background:var(--bg);position:relative;padding-bottom:76px}
+header{height:76px;padding:16px 20px 8px;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:18px;margin:2px 0}.eyebrow{font-size:12px;color:var(--muted)}.icon{font-size:20px}
+.page{display:none;padding:4px 16px}.page.active{display:block}
+.hero{background:var(--panel);border-radius:24px;padding:17px 20px;text-align:center;box-shadow:0 5px 20px #00000008}
+.hero>span{font-size:12px;color:var(--muted)}.hero>strong{display:block;font-size:36px;letter-spacing:-1.5px;margin:2px 0 13px}
+.heroGrid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);padding-top:12px}.heroGrid>div+div{border-left:1px solid var(--line)}
+.heroGrid small,.heroGrid b{display:block}.heroGrid small{color:var(--muted);font-size:11px}.heroGrid b{font-size:17px;margin-top:3px}
+.balances{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0}
+.balances div{background:var(--panel);padding:10px 12px;border-radius:14px;display:flex;justify-content:space-between;font-size:12px}.balances b{font-size:13px}
+.card{background:var(--panel);border-radius:18px;padding:13px 15px;margin-top:9px}.sectionHead{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}.sectionHead button{font-size:11px}
+.nextRow{display:grid;grid-template-columns:55px 1fr auto;align-items:center;margin-top:9px}.nextRow .date{font-size:12px;color:var(--muted)}.nextRow .name{font-weight:700;font-size:14px}.nextRow .amount{font-weight:800;font-size:16px}
+.forecast div{display:flex;justify-content:space-between;align-items:center;font-size:12px}.forecast strong{font-size:20px}.forecast small{color:var(--muted);font-size:10px}
+nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,520px);height:70px;background:#ffffffee;backdrop-filter:blur(15px);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;padding:6px 8px max(6px,env(safe-area-inset-bottom));z-index:5}
+nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#8a9098;font-size:19px}nav button span{font-size:9px}.selected{color:var(--text)!important}
+nav .plus{width:48px;height:48px;margin:auto;border-radius:50%;background:var(--accent);color:white;font-size:27px}
+.pageHead{display:flex;align-items:center;justify-content:space-between;padding:5px 3px 10px}.pageHead h2{margin:0}.primary{border:0;border-radius:13px;background:#17191c;color:#fff;padding:12px 16px;font-weight:700}.primary.small{font-size:12px;padding:8px 11px}
+.list{display:grid;gap:8px}.item{background:#fff;border-radius:16px;padding:13px 14px;display:grid;grid-template-columns:1fr auto;gap:5px}.item small{color:var(--muted)}.item .amt{font-weight:800}.item .actions{grid-column:1/-1;display:flex;gap:7px}.item .actions button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:5px 8px;font-size:11px}
+.savingHero strong{display:block;font-size:30px;margin:5px 0}.savingHero small{color:var(--muted)}
+dialog{border:0;border-radius:22px;padding:0;width:min(92%,420px);box-shadow:0 20px 70px #0003}dialog::backdrop{background:#0006;backdrop-filter:blur(3px)}
+form{padding:18px;display:grid;gap:11px}.modalHead{display:flex;justify-content:space-between;align-items:center}.modalHead h3{margin:0}.modalHead button{font-size:24px}
+label{font-size:11px;color:var(--muted);display:grid;gap:4px}input,select{width:100%;border:1px solid var(--line);background:#f8f9fa;border-radius:11px;padding:10px;color:var(--text)}
+.hiddenMoney [data-money]{filter:blur(7px);user-select:none}
+@media(max-height:700px){header{height:62px;padding-top:10px}.hero{padding:11px 18px}.hero>strong{font-size:31px;margin-bottom:8px}.heroGrid{padding-top:8px}.balances{margin:6px 0;gap:5px}.balances div{padding:7px 10px}.card{margin-top:6px;padding:9px 13px}.forecast small{display:none}}
+@media(min-width:700px){#app{min-height:760px;margin-top:20px;border-radius:28px;overflow:hidden;box-shadow:0 15px 50px #0001}nav{bottom:20px;border-radius:0 0 28px 28px}}
+
+
+/* v1.2 header hierarchy */
+header{height:80px;align-items:center}
+header .eyebrow{font-size:20px;font-weight:800;letter-spacing:-.5px;color:var(--text);line-height:1.15}
+header h1{font-size:11px;font-weight:600;color:var(--muted);margin:5px 0 0;letter-spacing:.2px}
+@media(max-height:700px){
+  header{height:66px}
+  header .eyebrow{font-size:18px}
+  header h1{font-size:10px;margin-top:2px}
+}
+
+
+/* v1.3 */
+.topHeader{height:88px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;padding:12px 16px 8px;align-items:center}
+.brandDate{min-width:0}
+.dateDisplay{white-space:nowrap;line-height:1}
+.dateDisplay .num{font-size:23px;font-weight:850;letter-spacing:-1px}
+.dateDisplay .unit{font-size:13px;font-weight:600;margin:0 1px;color:var(--muted)}
+.dateDisplay .weekday{font-size:17px;font-weight:750;margin-left:3px}
+.brand{font-size:10px;color:var(--muted);margin-top:6px;font-weight:600;letter-spacing:.4px}
+.paydayBox{border-left:1px solid var(--line);padding-left:11px;text-align:center;white-space:nowrap}
+.paydayBox>span{display:block;font-size:9px;color:var(--muted)}
+.paydayBox strong{font-size:25px;line-height:1;font-weight:850}
+.paydayBox em{font-size:11px;font-style:normal;margin-left:2px}
+.paydayBox small{display:block;font-size:9px;color:var(--muted);margin-top:2px}
+.headerActions{display:flex;flex-direction:column;gap:2px}.headerActions .icon{font-size:15px;padding:2px}
+.balanceCell{display:grid!important;grid-template-columns:1fr auto;grid-template-rows:auto auto;column-gap:5px}
+.balanceCell .reconcile{grid-column:1/-1;border:0;background:none;color:var(--muted);font-size:9px;text-align:right;padding:2px 0 0;cursor:pointer}
+.secondary{border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px;font-weight:650}
+.checkLabel{display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px}.checkLabel input{width:auto}
+.holidayList{display:flex;flex-wrap:wrap;gap:5px}.holidayChip{font-size:10px;background:#f1f2f4;border-radius:99px;padding:5px 8px}.holidayChip button{border:0;background:none}
+@media(max-width:380px){
+ .dateDisplay .num{font-size:20px}.dateDisplay .weekday{font-size:15px}.paydayBox strong{font-size:22px}
+ .topHeader{gap:6px;padding-left:12px;padding-right:12px}.paydayBox{padding-left:7px}
+}
+@media(max-height:700px){
+ .topHeader{height:70px;padding-top:7px;padding-bottom:5px}
+ .dateDisplay .num{font-size:20px}.dateDisplay .weekday{font-size:15px}.brand{margin-top:3px}
+ .paydayBox strong{font-size:21px}
+}
+
+
+/* ===== v1.4 mobile-first polish ===== */
+html,body{width:100%;min-height:100%;overscroll-behavior:none}
+body{overflow-x:hidden}
+#app{width:100%;max-width:520px;min-height:100dvh;margin:0 auto;padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+header.topHeader{width:100%}
+.page{width:100%;overflow-x:hidden}
+
+/* Phones: keep HOME inside one viewport wherever practical */
+@media (max-width: 600px){
+  #app{min-height:100dvh}
+  .topHeader{
+    height:84px;
+    grid-template-columns:minmax(0,1fr) auto auto;
+    padding:calc(10px + env(safe-area-inset-top)) 12px 6px;
+    gap:6px;
+  }
+  .dateDisplay .num{font-size:clamp(19px,5.8vw,24px)}
+  .dateDisplay .unit{font-size:clamp(10px,3vw,13px)}
+  .dateDisplay .weekday{font-size:clamp(14px,4.2vw,18px)}
+  .brand{font-size:9px;margin-top:4px}
+  .paydayBox{padding-left:7px}
+  .paydayBox>span{font-size:8px}
+  .paydayBox strong{font-size:clamp(21px,6vw,26px)}
+  .paydayBox em,.paydayBox small{font-size:9px}
+  .headerActions{gap:0}.headerActions .icon{font-size:14px}
+
+  .page{padding:2px 11px}
+  .hero{border-radius:20px;padding:13px 14px 11px}
+  .hero>strong{font-size:clamp(31px,10vw,40px);margin:1px 0 9px}
+  .heroGrid{padding-top:8px}
+  .heroGrid b{font-size:clamp(15px,4.7vw,18px)}
+  .balances{gap:5px;margin:6px 0}
+  .balances div{border-radius:12px;padding:7px 9px}
+  .balances span{font-size:10px}
+  .balances b{font-size:12px}
+  .balanceCell .reconcile{font-size:8px}
+  .card{border-radius:15px;padding:9px 11px;margin-top:6px}
+  .nextRow{grid-template-columns:46px 1fr auto;margin-top:6px}
+  .nextRow .date{font-size:10px}.nextRow .name{font-size:12px}.nextRow .amount{font-size:13px}
+  .forecast strong{font-size:17px}
+  nav{
+    left:0;transform:none;width:100%;max-width:none;bottom:0;
+    height:calc(66px + env(safe-area-inset-bottom));
+    padding:4px 6px max(5px,env(safe-area-inset-bottom));
+    border-radius:0;
+  }
+  nav .plus{width:44px;height:44px;font-size:24px}
+  nav button{font-size:17px}nav button span{font-size:8px}
+
+  dialog{
+    width:calc(100% - 22px);
+    max-width:430px;
+    max-height:calc(100dvh - 28px);
+    overflow:auto;
+    border-radius:20px;
+  }
+  dialog form{padding:15px;gap:9px}
+  input,select{font-size:16px} /* prevents iOS input zoom */
+  .pageHead{position:sticky;top:0;background:var(--bg);z-index:2;padding-top:8px}
+}
+
+/* Short phones: compress only the home dashboard, not detail pages */
+@media (max-width:600px) and (max-height:740px){
+  .topHeader{height:68px;padding-top:max(5px,env(safe-area-inset-top))}
+  .dateDisplay .num{font-size:18px}.dateDisplay .unit{font-size:9px}.dateDisplay .weekday{font-size:13px}
+  .brand{display:none}
+  .paydayBox strong{font-size:20px}.paydayBox small{display:none}
+  #home .hero{padding:8px 12px}
+  #home .hero>strong{font-size:29px;margin-bottom:5px}
+  #home .heroGrid{padding-top:5px}
+  #home .balances{margin:4px 0;gap:4px}
+  #home .balances div{padding:5px 7px}
+  #home .card{padding:7px 9px;margin-top:4px}
+  #home .forecast small{display:none}
+  #home .nextRow{margin-top:4px}
+}
+
+/* Very narrow phones */
+@media (max-width:350px){
+  .topHeader{grid-template-columns:minmax(0,1fr) auto}
+  .headerActions{display:none}
+  .dateDisplay .num{font-size:17px}.dateDisplay .unit{font-size:9px}.dateDisplay .weekday{font-size:12px}
+  .paydayBox strong{font-size:19px}
+  .balances{grid-template-columns:1fr 1fr}
+  .nextRow{grid-template-columns:39px 1fr auto}
+}
+
+/* Desktop card shell only */
+@media (min-width:700px){
+  #app{width:520px}
+}
+
+
+/* v1.5: total assets uses 89,684円; only 円 is smaller */
+.hero>strong#total{
+  display:flex;
+  justify-content:center;
+  align-items:baseline;
+  gap:.10em;
+}
+#total .totalNumber{
+  font-size:1em;
+  font-weight:850;
+  letter-spacing:-1.5px;
+}
+#total .totalYen{
+  font-size:.42em;
+  font-weight:700;
+  letter-spacing:0;
+}
+
+/* v1.6 typography */
+body,button,input,select,textarea{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Kaku Gothic Pro",
+              "ヒラギノ角ゴ ProN W3","Yu Gothic","YuGothic",
+              "Noto Sans JP",sans-serif;
+}
+
+
+.deviceDataNote{
+  background:#f4f6f8;border-radius:13px;padding:11px 12px;
+  display:grid;gap:4px;color:var(--text)
+}
+.deviceDataNote b{font-size:12px}
+.deviceDataNote small{font-size:10px;line-height:1.55;color:var(--muted)}
+
+
+/* v1.7 optional owner cloud sync */
+.syncChoice{display:grid;gap:8px}
+.modeCard{border:1px solid var(--line);background:#fff;border-radius:15px;padding:13px;text-align:left;display:grid;gap:4px;color:var(--text)}
+.modeCard b{font-size:13px}.modeCard small,.syncMessage{font-size:10px;line-height:1.5;color:var(--muted)}
+#cloudPanel{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+#cloudPanel[hidden]{display:none}
+.syncButtons{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+#syncBadge{font-size:9px;font-weight:500}
+.syncOnline{color:#27844b!important}
+.syncing{opacity:.65}
+
+
+.cloudSetup{display:grid;gap:8px;padding:10px;border-radius:13px;background:#f4f6f8}
+.cloudSetup>b{font-size:12px}.cloudSetup small{font-size:9px;color:var(--muted);line-height:1.45}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topHeader">
+      <div class="brandDate">
+        <div id="today" class="dateDisplay"></div>
+        <div class="brand">My Money <span id="syncBadge">・この端末のみ</span></div>
+      </div>
+      <div class="paydayBox">
+        <span>次の給料日まで</span>
+        <div><strong id="paydayDays">--</strong><em>日</em></div>
+        <small id="paydayDate"></small>
+      </div>
+      <div class="headerActions"><button class="icon" id="syncBtn" title="同期">☁</button><button class="icon" id="settingsBtn" title="設定">⚙</button><button class="icon" id="privacyBtn" title="金額を隠す">◉</button></div>
+    </header>
+
+  <main id="home" class="page active">
+    <section class="hero">
+      <span>総資産</span><strong data-money id="total">¥0</strong>
+      <div class="heroGrid">
+        <div><small>使えるお金</small><b data-money id="spendable">¥0</b></div>
+        <div><small>🔒 貯金</small><b data-money id="savings">¥0</b></div>
+      </div>
+    </section>
+
+    <section class="balances">
+      <div class="balanceCell"><span>🏦 口座</span><b data-money id="bank"></b><button class="reconcile" data-account="bank">合わせる</button></div>
+      <div class="balanceCell"><span>🟢 PayPay</span><b data-money id="paypay"></b><button class="reconcile" data-account="paypay">合わせる</button></div>
+      <div class="balanceCell"><span>💵 現金</span><b data-money id="cash"></b><button class="reconcile" data-account="cash">合わせる</button></div>
+      <div><span>💳 次回カード</span><b data-money id="card"></b></div>
+    </section>
+
+    <section class="next card">
+      <div class="sectionHead"><span>次の予定</span><button id="allPlansBtn">すべての予定 ›</button></div>
+      <div id="nextPlan"></div>
+    </section>
+
+    <section class="forecast card">
+      <div><span>🎯 10/15時点の予測</span><strong data-money id="forecast"></strong></div>
+      <small>登録済み予定から自動計算</small>
+    </section>
+  </main>
+
+  <main id="history" class="page"><div class="pageHead"><h2>履歴</h2></div><div id="historyList" class="list"></div></main>
+  <main id="plans" class="page"><div class="pageHead"><h2>予定</h2><button class="primary small" id="addPlanBtn">＋ 新しい予定</button></div><div id="planList" class="list"></div></main>
+  <main id="saving" class="page"><div class="pageHead"><h2>貯金</h2><button class="primary small" id="addSavingBtn">＋ 貯金項目</button></div><div class="savingHero card"><span>貯金合計</span><strong data-money id="savingTotal"></strong><small>総資産には含まれますが、使えるお金からは除外します。</small></div><div id="savingList" class="list"></div></main>
+
+  <nav>
+    <button data-page="home" class="selected">⌂<span>ホーム</span></button>
+    <button data-page="history">≡<span>履歴</span></button>
+    <button id="quickAdd" class="plus">＋</button>
+    <button data-page="plans">▣<span>予定</span></button>
+    <button data-page="saving">◇<span>貯金</span></button>
+  </nav>
+</div>
+
+<dialog id="moneyDialog">
+<form method="dialog" id="moneyForm">
+  <div class="modalHead"><h3>お金を記録</h3><button type="button" class="dialogClose" aria-label="閉じる">×</button></div>
+  <label>種類<select id="txType"><option value="expense">支出</option><option value="income">収入</option></select></label>
+  <label>金額（最低）<input id="txAmount" type="number" min="1" required inputmode="numeric" placeholder="例：6000"></label>
+  <label>金額（最大・任意）<input id="txMax" type="number" min="1" inputmode="numeric" placeholder="例：10000"></label>
+  <small style="color:var(--muted);margin-top:-6px">まだ金額が決まっていないときは「6,000〜10,000円」のように幅を持たせて登録できます。</small>
+  <label>名前<input id="txName" required placeholder="例：コンビニ"></label>
+  <label>支払元<select id="txAccount"><option value="bank">口座</option><option value="paypay">PayPay</option><option value="cash">現金</option></select></label>
+  <label>日付<input id="txDate" type="date" required></label>
+  <button class="primary" value="default">登録する</button>
+</form>
+</dialog>
+
+<dialog id="planDialog">
+<form method="dialog" id="planForm">
+  <div class="modalHead"><h3>予定を追加</h3><button type="button" class="dialogClose" aria-label="閉じる">×</button></div>
+  <label>日付<input id="planDate" type="date" required></label>
+  <label>名前<input id="planName" required placeholder="例：ライブ"></label>
+  <label>種類<select id="planType"><option value="expense">支出</option><option value="income">収入</option></select></label>
+  <label>金額（最低）<input id="planAmount" type="number" min="0" required inputmode="numeric" placeholder="例：6000"></label>
+  <label>金額（最大・任意）<input id="planMax" type="number" min="0" inputmode="numeric" placeholder="例：10000"></label>
+  <small style="color:var(--muted);margin-top:-6px">最大金額を入れると「6,000〜10,000円」のように表示されます。</small>
+  <label>状態<select id="planStatus"><option value="confirmed">確定</option><option value="tentative">未確定</option></select></label>
+  <button class="primary" value="default">追加する</button>
+</form>
+</dialog>
+
+
+
+
+<dialog id="syncDialog">
+<form method="dialog" id="syncForm">
+  <div class="modalHead"><h3>データの保存方法</h3><button type="button" class="dialogClose" aria-label="閉じる">×</button></div>
+  <div class="syncChoice">
+    <button type="button" class="modeCard" id="localModeBtn">
+      <b>📱 この端末だけで使う</b>
+      <small>家族向け。アカウント不要で、この端末だけに保存します。</small>
+    </button>
+    <button type="button" class="modeCard" id="cloudModeBtn">
+      <b>☁️ 自分の端末を同期する</b>
+      <small>自分向け。PCとスマホで同じデータを使います。</small>
+    </button>
+  </div>
+  <div id="cloudPanel" hidden>
+    <div class="cloudSetup">
+      <b>Supabase接続設定</b>
+      <label>Project URL<input id="cloudProjectUrl" type="url" placeholder="https://xxxxx.supabase.co"></label>
+      <label>Publishable key<input id="cloudPublishableKey" type="password" placeholder="sb_publishable_..."></label>
+      <button type="button" class="secondary" id="saveCloudConfigBtn">接続情報を保存</button>
+      <small>※ Secret key / service_role key は入力しないでください。</small>
+    </div>
+    <label>メールアドレス<input id="cloudEmail" type="email" autocomplete="username"></label>
+    <label>パスワード<input id="cloudPassword" type="password" autocomplete="current-password"></label>
+    <div class="syncButtons">
+      <button type="button" class="primary" id="loginBtn">ログイン</button>
+      <button type="button" class="secondary" id="createOwnerBtn">初回アカウント作成</button>
+    </div>
+    <button type="button" class="secondary" id="logoutBtn" hidden>同期を解除</button>
+    <small id="syncMessage" class="syncMessage"></small>
+  </div>
+</form>
+</dialog>
+
+<dialog id="settingsDialog">
+<form method="dialog" id="settingsForm">
+  <div class="modalHead"><h3>設定</h3><button type="button" class="dialogClose" aria-label="閉じる">×</button></div>
+  <div class="deviceDataNote">
+    <b>📱 この端末だけのデータ</b>
+    <small>残高・履歴・予定・貯金は、このブラウザ内に保存されます。家族が別のスマホやPCで開いた場合は、それぞれ別のデータになります。</small>
+  </div>
+  <label>基本の給料日<input id="salaryDay" type="number" min="1" max="28" value="15" required></label>
+  <label class="checkLabel"><input id="salaryPrevBusiness" type="checkbox" checked> 土日祝なら前営業日にする</label>
+  <label>追加の休業日・祝日（任意）
+    <input id="customHoliday" type="date">
+  </label>
+  <button type="button" id="addHolidayBtn" class="secondary">＋ 休業日を追加</button>
+  <div id="holidayList" class="holidayList"></div>
+  <button class="primary" value="default">保存する</button>
+</form>
+</dialog>
+
+<dialog id="savingDialog">
+<form method="dialog" id="savingForm">
+  <div class="modalHead"><h3>貯金項目を追加</h3><button type="button" class="dialogClose" aria-label="閉じる">×</button></div>
+  <label>貯金の名前<input id="savingName" required placeholder="例：東京ドーム貯金"></label>
+  <label>現在の金額<input id="savingAmount" type="number" min="0" required inputmode="numeric"></label>
+  <label>目標金額（任意）<input id="savingGoal" type="number" min="0" inputmode="numeric" placeholder="例：30000"></label>
+  <button class="primary" value="default">追加する</button>
+</form>
+</dialog>
+<script>
+
+const DEFAULT={
+ accounts:{bank:82177,paypay:177,cash:10000}, savings:[{id:1,name:"ノイミー落選貯金",amount:10890,goal:10890}],
+ card:12031, settings:{salaryDay:15,prevBusinessDay:true,customHolidays:[]},
+ plans:[
+  {id:1,date:"2026-09-27",name:"クレジットカード",type:"expense",amount:12031,max:null,status:"confirmed"},
+  {id:2,date:"2026-10-12",name:"イベント",type:"expense",amount:6000,max:10000,status:"confirmed"},
+  {id:3,date:"2026-10-15",name:"給料",type:"income",amount:60000,max:null,status:"confirmed"},
+  {id:4,date:"2026-10-20",name:"東京ドーム（当選時）",type:"expense",amount:20000,max:30000,status:"tentative"},
+  {id:5,date:"2026-11-15",name:"給料",type:"income",amount:45000,max:null,status:"confirmed"}
+ ],history:[], privacy:false
+};
+const STORAGE_KEY="myMoneyDashboardData_v1";
+const CLOUD_CONFIG_KEY="myMoneyCloudConfig_v1";
+let CLOUD_CONFIG=JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)||"null")||{url:"",anonKey:""};
+const CLOUD_SESSION_KEY="myMoneyCloudSession_v1";
+let cloudSession=JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY)||"null");
+let cloudTimer=null;
+const legacyData=localStorage.getItem("myMoneyData");
+let data=JSON.parse(localStorage.getItem(STORAGE_KEY)||legacyData||"null")||structuredClone(DEFAULT);
+if(!localStorage.getItem(STORAGE_KEY) && legacyData) localStorage.setItem(STORAGE_KEY,legacyData);
+data.savings=(data.savings||[]).map(s=>({...s,goal:s.goal??(s.name==="ノイミー落選貯金"?10890:null)}));
+data.settings=data.settings||{salaryDay:15,prevBusinessDay:true,customHolidays:[]};
+data.settings.customHolidays=data.settings.customHolidays||[];
+const yen=n=>"¥"+Math.round(n).toLocaleString("ja-JP");
+const yenTotal=n=>`<span class="totalNumber">${Math.round(n).toLocaleString("ja-JP")}</span><span class="totalYen">円</span>`;
+const save=()=>{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));render();scheduleCloudSave()};
+function cloudConfigured(){return /^https:\/\/.+\.supabase\.co\/?$/.test(CLOUD_CONFIG.url)&&CLOUD_CONFIG.anonKey.length>10}
+function normalizeSupabaseUrl(v){return v.trim().replace(/\/rest\/v1\/?$/,"").replace(/\/$/,"")}
+function authHeaders(token){return {"apikey":CLOUD_CONFIG.anonKey,"Authorization":"Bearer "+token,"Content-Type":"application/json"}}
+function scheduleCloudSave(){
+ if(!cloudSession?.access_token||!cloudConfigured())return;
+ clearTimeout(cloudTimer);
+ cloudTimer=setTimeout(()=>pushCloudData(),500);
+}
+async function refreshCloudSession(){
+ if(!cloudSession?.refresh_token||!cloudConfigured())return false;
+ try{
+  const r=await fetch(`${CLOUD_CONFIG.url}/auth/v1/token?grant_type=refresh_token`,{method:"POST",headers:{"apikey":CLOUD_CONFIG.anonKey,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:cloudSession.refresh_token})});
+  if(!r.ok)return false;
+  cloudSession=await r.json();localStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify(cloudSession));return true;
+ }catch{return false}
+}
+async function pushCloudData(){
+ if(!cloudSession?.access_token)return;
+ document.body.classList.add("syncing");
+ try{
+  let r=await fetch(`${CLOUD_CONFIG.url}/rest/v1/money_data?on_conflict=user_id`,{
+   method:"POST",headers:{...authHeaders(cloudSession.access_token),"Prefer":"resolution=merge-duplicates"},
+   body:JSON.stringify({user_id:cloudSession.user.id,payload:data,updated_at:new Date().toISOString()})
+  });
+  if(r.status===401 && await refreshCloudSession()) return pushCloudData();
+  if(r.ok) setSyncBadge(true);
+ }finally{document.body.classList.remove("syncing")}
+}
+async function pullCloudData(){
+ if(!cloudSession?.access_token)return false;
+ let r=await fetch(`${CLOUD_CONFIG.url}/rest/v1/money_data?user_id=eq.${cloudSession.user.id}&select=payload`,{headers:authHeaders(cloudSession.access_token)});
+ if(r.status===401 && await refreshCloudSession())return pullCloudData();
+ if(!r.ok)return false;
+ const rows=await r.json();
+ if(rows[0]?.payload){data=rows[0].payload;localStorage.setItem(STORAGE_KEY,JSON.stringify(data));render();return true}
+ await pushCloudData();return true;
+}
+function setSyncBadge(on){
+ syncBadge.textContent=on?"・同期中":"・この端末のみ";
+ syncBadge.classList.toggle("syncOnline",on);
+}
+const fmt=d=>{const x=new Date(d+"T00:00:00");return `${x.getMonth()+1}/${x.getDate()}`};
+
+function dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
+function nthWeekday(year,month,weekday,n){
+ const d=new Date(year,month-1,1); const delta=(weekday-d.getDay()+7)%7;
+ return 1+delta+(n-1)*7;
+}
+function vernalDay(y){return Math.floor(20.8431+0.242194*(y-1980)-Math.floor((y-1980)/4))}
+function autumnDay(y){return Math.floor(23.2488+0.242194*(y-1980)-Math.floor((y-1980)/4))}
+function baseJapaneseHolidays(y){
+ const s=new Set();
+ const add=(m,d)=>s.add(`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`);
+ add(1,1); add(1,nthWeekday(y,1,1,2)); add(2,11); if(y>=2020)add(2,23);
+ add(3,vernalDay(y)); add(4,29); add(5,3); add(5,4); add(5,5);
+ add(7,nthWeekday(y,7,1,3)); add(8,11); add(9,nthWeekday(y,9,1,3)); add(9,autumnDay(y));
+ add(10,nthWeekday(y,10,1,2)); add(11,3); add(11,23);
+ // One-off imperial holidays relevant to modern calendars
+ if(y===2019){add(5,1);add(10,22)}
+ return s;
+}
+function japaneseHolidaySet(y){
+ let s=baseJapaneseHolidays(y);
+ // Substitute holiday: a national holiday on Sunday makes the next non-holiday a holiday.
+ for(let m=0;m<12;m++)for(let d=1;d<=31;d++){
+   const dt=new Date(y,m,d); if(dt.getMonth()!==m)continue;
+   const k=dateKey(dt);
+   if(s.has(k)&&dt.getDay()===0){
+     let x=new Date(y,m,d+1);
+     while(s.has(dateKey(x)))x.setDate(x.getDate()+1);
+     if(x.getFullYear()===y)s.add(dateKey(x));
+   }
+ }
+ // Citizen's holiday: weekday sandwiched between two national holidays.
+ for(let m=0;m<12;m++)for(let d=2;d<=30;d++){
+   const dt=new Date(y,m,d);if(dt.getMonth()!==m)continue;
+   if(s.has(dateKey(dt)))continue;
+   const p=new Date(y,m,d-1),n=new Date(y,m,d+1);
+   if(s.has(dateKey(p))&&s.has(dateKey(n)))s.add(dateKey(dt));
+ }
+ return s;
+}
+function isHoliday(d){
+ const k=dateKey(d);
+ return japaneseHolidaySet(d.getFullYear()).has(k)||(data.settings.customHolidays||[]).includes(k);
+}
+function isBusinessDay(d){return d.getDay()!==0&&d.getDay()!==6&&!isHoliday(d)}
+function adjustedPayday(year,monthIndex){
+ let d=new Date(year,monthIndex,Math.min(28,+data.settings.salaryDay||15));
+ if(data.settings.prevBusinessDay){
+   while(!isBusinessDay(d))d.setDate(d.getDate()-1);
+ }
+ return d;
+}
+function getNextPayday(now){
+ let p=adjustedPayday(now.getFullYear(),now.getMonth());
+ const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ if(p<today)p=adjustedPayday(now.getFullYear(),now.getMonth()+1);
+ return p;
+}
+
+function totals(){
+ const total=Object.values(data.accounts).reduce((a,b)=>a+b,0);
+ const savings=data.savings.reduce((a,b)=>a+b.amount,0);
+ return {total,savings,spendable:total-savings};
+}
+function forecast(target="2026-10-15"){
+ let {total}=totals(), lo=total, hi=total;
+ data.plans.filter(p=>p.status==="confirmed"&&p.date<=target).forEach(p=>{
+   if(p.type==="income"){lo+=p.amount;hi+=p.max||p.amount}
+   else {lo-=p.max||p.amount;hi-=p.amount}
+ });
+ return lo===hi?yen(lo):`${yen(lo)}〜${yen(hi)}`;
+}
+function render(){
+ const t=totals();
+ const now=new Date(), days=["日","月","火","水","木","金","土"];
+ today.innerHTML=`<span class="num">${now.getFullYear()}</span><span class="unit">年</span><span class="num">${now.getMonth()+1}</span><span class="unit">月</span><span class="num">${now.getDate()}</span><span class="unit">日</span><span class="weekday">（${days[now.getDay()]}）</span>`;
+ const pd=getNextPayday(now);
+ const start=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ const diff=Math.max(0,Math.round((pd-start)/86400000));
+ paydayDays.textContent=diff===0?"今日":diff;
+ paydayDays.nextElementSibling.style.display=diff===0?"none":"inline";
+ paydayDate.textContent=`${pd.getMonth()+1}/${pd.getDate()} 振込予定`;
+ total.innerHTML=yenTotal(t.total); savings.textContent=yen(t.savings); spendable.textContent=yen(t.spendable);
+ bank.textContent=yen(data.accounts.bank);paypay.textContent=yen(data.accounts.paypay);cash.textContent=yen(data.accounts.cash);card.textContent=yen(data.card);
+ savingTotal.textContent=yen(t.savings);forecast.textContent=forecast();
+ document.body.classList.toggle("hiddenMoney",data.privacy);
+ const upcoming=data.plans.filter(p=>p.status!=="cancelled"&&new Date(p.date+"T23:59:59")>=new Date()).sort((a,b)=>a.date.localeCompare(b.date));
+ const p=upcoming[0];
+ nextPlan.innerHTML=p?`<div class="nextRow"><div class="date">${fmt(p.date)}</div><div class="name">${p.name}${p.status==="tentative"?" <small>未確定</small>":""}</div><div class="amount" data-money>${p.type==="income"?"+":"−"} ${p.max?yen(p.amount)+"〜"+yen(p.max):yen(p.amount)}</div></div>`:`<div style="padding:12px 0;color:#888">予定はありません</div>`;
+ planList.innerHTML=upcoming.map(p=>`<div class="item"><div><b>${fmt(p.date)}　${p.name}</b><br><small>${p.status==="tentative"?"未確定":"確定"}</small></div><div class="amt" data-money>${p.type==="income"?"+":"−"}${p.max?yen(p.amount)+"〜"+yen(p.max):yen(p.amount)}</div><div class="actions"><button onclick="completePlan(${p.id})">完了</button><button onclick="cancelPlan(${p.id})">キャンセル</button></div></div>`).join("");
+ historyList.innerHTML=data.history.length?data.history.slice().reverse().map(h=>`<div class="item"><div><b>${h.name}</b><br><small>${fmt(h.date)}・${h.account||""}</small></div><div class="amt" data-money>${h.type==="income"?"+":"−"}${yen(h.amount)}</div></div>`).join(""):`<div class="card"><small>まだ履歴はありません。</small></div>`;
+ savingList.innerHTML=data.savings.map(s=>{
+ const pct=s.goal?Math.min(100,Math.round(s.amount/s.goal*100)):null;
+ return `<div class="item">
+   <div><b>🔒 ${s.name}</b><br><small>${s.goal?`目標 ${yen(s.goal)}・${pct}%`:"目標なし"}</small></div>
+   <div class="amt" data-money>${yen(s.amount)}</div>
+   ${s.goal?`<div style="grid-column:1/-1;height:6px;background:#eef0f2;border-radius:99px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#17191c"></div></div>`:""}
+   <div class="actions">
+     <button onclick="changeSaving(${s.id})">金額変更</button>
+     <button onclick="deleteSaving(${s.id})">削除</button>
+   </div>
+ </div>`}).join("");
+}
+document.querySelectorAll("dialog .dialogClose").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    const dlg=btn.closest("dialog");
+    if(dlg?.open) dlg.close("cancel");
+  });
+});
+// モーダル外の暗い部分をタップ/クリックしても閉じる
+document.querySelectorAll("dialog").forEach(dlg=>{
+  dlg.addEventListener("click",e=>{
+    if(e.target===dlg) dlg.close("cancel");
+  });
+});
+
+document.querySelectorAll("nav [data-page]").forEach(b=>b.onclick=()=>showPage(b.dataset.page));
+function showPage(id){document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll("nav [data-page]").forEach(x=>x.classList.toggle("selected",x.dataset.page===id))}
+allPlansBtn.onclick=()=>showPage("plans"); addPlanBtn.onclick=()=>planDialog.showModal();
+addSavingBtn.onclick=()=>savingDialog.showModal(); quickAdd.onclick=()=>{txDate.value=new Date().toISOString().slice(0,10);moneyDialog.showModal()};
+privacyBtn.onclick=()=>{data.privacy=!data.privacy;save()};
+
+document.querySelectorAll(".reconcile").forEach(btn=>btn.onclick=()=>{
+ const acct=btn.dataset.account;
+ const labels={bank:"口座",paypay:"PayPay",cash:"現金"};
+ const current=data.accounts[acct]||0;
+ const raw=prompt(`${labels[acct]}の実際の残高を入力してください\n現在の登録残高：${yen(current)}`,current);
+ if(raw===null)return;
+ const actual=Number(raw);if(!Number.isFinite(actual)||actual<0){alert("正しい金額を入力してください。");return}
+ const diff=actual-current;
+ if(diff===0){alert("すでに一致しています！");return}
+ if(confirm(`差額 ${diff>0?"+":""}${yen(diff)} を調整して残高を合わせますか？`)){
+   data.accounts[acct]=actual;
+   data.history.push({id:Date.now(),date:new Date().toISOString().slice(0,10),name:`${labels[acct]} 残高調整`,type:diff>=0?"income":"expense",amount:Math.abs(diff),account:acct});
+   save();
+ }
+});
+settingsBtn.onclick=()=>{
+ salaryDay.value=data.settings.salaryDay||15;
+ salaryPrevBusiness.checked=data.settings.prevBusinessDay!==false;
+ renderHolidayList();
+ settingsDialog.showModal();
+};
+function renderHolidayList(){
+ holidayList.innerHTML=(data.settings.customHolidays||[]).map(d=>`<span class="holidayChip">${d}<button type="button" onclick="removeHoliday('${d}')">×</button></span>`).join("");
+}
+addHolidayBtn.onclick=()=>{
+ if(!customHoliday.value)return;
+ if(!data.settings.customHolidays.includes(customHoliday.value))data.settings.customHolidays.push(customHoliday.value);
+ customHoliday.value="";renderHolidayList();
+};
+window.removeHoliday=d=>{data.settings.customHolidays=data.settings.customHolidays.filter(x=>x!==d);renderHolidayList()};
+settingsForm.addEventListener("submit",e=>{
+ if(e.submitter?.value==="cancel")return;
+ e.preventDefault();
+ data.settings.salaryDay=+salaryDay.value;
+ data.settings.prevBusinessDay=salaryPrevBusiness.checked;
+ settingsDialog.close();save();
+});
+
+moneyForm.addEventListener("submit",e=>{
+ if(e.submitter?.value==="cancel")return; e.preventDefault();
+ const a=+txAmount.value, mx=txMax.value?+txMax.value:null;if(!a)return;
+ const type=txType.value,acct=txAccount.value;
+ if(mx && mx>=a){
+   data.plans.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,max:mx,status:"confirmed",account:acct});
+ }else{
+   data.accounts[acct]+=type==="income"?a:-a;
+   data.history.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,account:acct});
+ }
+ moneyDialog.close();moneyForm.reset();save()
+});
+planForm.addEventListener("submit",e=>{
+ if(e.submitter?.value==="cancel")return;e.preventDefault();
+ const mn=+planAmount.value,mx=planMax.value?+planMax.value:null;
+ if(mx!==null && mx<mn){alert("最大金額は最低金額以上にしてください。");return}
+ data.plans.push({id:Date.now(),date:planDate.value,name:planName.value,type:planType.value,amount:mn,max:mx,status:planStatus.value});
+ planDialog.close();planForm.reset();save()
+});
+window.completePlan=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;let actual=prompt("実際の金額を入力してください",p.amount);if(actual===null)return;actual=+actual;if(!Number.isFinite(actual))return;const acct=prompt("支払元/入金先：bank / paypay / cash","bank");if(!["bank","paypay","cash"].includes(acct))return;data.accounts[acct]+=p.type==="income"?actual:-actual;data.history.push({id:Date.now(),date:p.date,name:p.name,type:p.type,amount:actual,account:acct});p.status="completed";save()};
+savingForm.addEventListener("submit",e=>{
+ if(e.submitter?.value==="cancel")return;
+ e.preventDefault();
+ data.savings.push({id:Date.now(),name:savingName.value,amount:+savingAmount.value,goal:savingGoal.value?+savingGoal.value:null});
+ savingDialog.close(); savingForm.reset(); save();
+});
+window.changeSaving=id=>{
+ const s=data.savings.find(x=>x.id===id); if(!s)return;
+ const v=prompt(`${s.name} の現在額`,s.amount); if(v===null)return;
+ const n=+v;if(!Number.isFinite(n)||n<0)return;s.amount=n;save();
+};
+window.deleteSaving=id=>{
+ const s=data.savings.find(x=>x.id===id);if(!s)return;
+ if(confirm(`${s.name} を削除しますか？\n※総資産そのものは変わりません。`)){data.savings=data.savings.filter(x=>x.id!==id);save()}
+};
+window.cancelPlan=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;if(confirm("この予定をキャンセルしますか？")){p.status="cancelled";save()}};
+
+syncBtn.onclick=()=>{
+ cloudPanel.hidden=true;
+ cloudProjectUrl.value=CLOUD_CONFIG.url||"";
+ cloudPublishableKey.value=CLOUD_CONFIG.anonKey||"";
+ logoutBtn.hidden=!cloudSession;
+ syncMessage.textContent=cloudSession?"この端末は自分のクラウドデータと同期中です。":"";
+ syncDialog.showModal();
+};
+saveCloudConfigBtn.onclick=()=>{
+ const url=normalizeSupabaseUrl(cloudProjectUrl.value);
+ const key=cloudPublishableKey.value.trim();
+ if(!/^https:\/\/.+\.supabase\.co$/.test(url)){
+   syncMessage.textContent="Project URLを確認してください。末尾の /rest/v1/ は付けなくてOKです。";return;
+ }
+ if(!key.startsWith("sb_publishable_") && key.length<20){
+   syncMessage.textContent="Publishable keyを確認してください。Secret keyは使わないでください。";return;
+ }
+ CLOUD_CONFIG={url,anonKey:key};
+ localStorage.setItem(CLOUD_CONFIG_KEY,JSON.stringify(CLOUD_CONFIG));
+ cloudProjectUrl.value=url;
+ syncMessage.textContent="接続情報をこの端末に保存しました。次に自分のアカウントを作成してください。";
+};
+localModeBtn.onclick=()=>{
+ cloudSession=null;localStorage.removeItem(CLOUD_SESSION_KEY);setSyncBadge(false);
+ cloudPanel.hidden=true;syncMessage.textContent="この端末だけに保存するモードです。";logoutBtn.hidden=true;
+};
+cloudModeBtn.onclick=()=>{
+ cloudPanel.hidden=false;logoutBtn.hidden=!cloudSession;
+ if(!cloudConfigured())syncMessage.textContent="クラウド同期の初期設定がまだです。READMEの手順でSupabase接続情報を設定してください。";
+};
+async function authAction(kind){
+ if(!cloudConfigured()){syncMessage.textContent="先にSupabaseの接続設定が必要です。";return}
+ const email=cloudEmail.value.trim(),password=cloudPassword.value;
+ if(!email||password.length<6){syncMessage.textContent="メールアドレスと6文字以上のパスワードを入力してください。";return}
+ syncMessage.textContent="接続中…";
+ const endpoint=kind==="signup"?"/auth/v1/signup":"/auth/v1/token?grant_type=password";
+ const r=await fetch(CLOUD_CONFIG.url+endpoint,{method:"POST",headers:{"apikey":CLOUD_CONFIG.anonKey,"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+ const j=await r.json();
+ if(!r.ok){syncMessage.textContent=j.msg||j.error_description||j.message||"接続できませんでした。";return}
+ if(kind==="signup"&&!j.access_token){syncMessage.textContent="確認メールを送信しました。メール確認後に「ログイン」を押してください。";return}
+ cloudSession=j;localStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify(j));logoutBtn.hidden=false;setSyncBadge(true);
+ const had=await pullCloudData();
+ syncMessage.textContent=had?"同期しました！このPC/スマホでは同じデータが使えます。":"ログインしました。";
+}
+loginBtn.onclick=()=>authAction("login");
+createOwnerBtn.onclick=()=>authAction("signup");
+logoutBtn.onclick=()=>{
+ cloudSession=null;localStorage.removeItem(CLOUD_SESSION_KEY);setSyncBadge(false);logoutBtn.hidden=true;
+ syncMessage.textContent="同期を解除しました。この端末のデータは残っています。";
+};
+if(cloudSession&&cloudConfigured()){setSyncBadge(true);pullCloudData()}else setSyncBadge(false);
+
+render();
+
+</script>
+</body>
+</html>
