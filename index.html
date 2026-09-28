@@ -418,7 +418,8 @@ body,button,input,select,textarea{
   <label>名前<input id="txName" required placeholder="例：コンビニ"></label>
   <label class="privateCheck"><input id="txHideName" type="checkbox"> この内容を隠す 🙈</label>
   <small class="privateHint">履歴では件名だけをぼかして表示します。金額・日付はそのまま確認できます。</small>
-  <label>支払元<select id="txAccount"><option value="bank">口座</option><option value="paypay">PayPay</option><option value="cash">現金</option></select></label>
+  <label>支払元 / 入金先<select id="txAccount"><option value="bank">口座</option><option value="paypay">PayPay</option><option value="cash">現金</option><option value="card">クレカ</option></select></label>
+  <small class="privateHint">「クレカ」で支出を登録すると、口座残高はその場では減らず「次回カード」の金額に加算されます。引落日にまとめて口座から自動で差し引きます。</small>
   <label>日付<input id="txDate" type="date" required></label>
   <label class="monthlyCheck"><input id="txMonthly" type="checkbox"> 🔁 毎月この日に自動登録する</label>
   <small class="privateHint">ONにすると、次回以降は毎月同じ日に同じ金額を自動で反映します。31日など存在しない月は月末に反映します。</small>
@@ -488,7 +489,7 @@ body,button,input,select,textarea{
   <label>基本の給料日<input id="salaryDay" type="number" min="1" max="28" value="15" required></label>
   <label class="checkLabel"><input id="salaryPrevBusiness" type="checkbox" checked> 土日祝なら前営業日にする</label>
   <label>次回のカード引落額<input id="cardAmount" type="number" min="0" inputmode="numeric" placeholder="例：12031"></label>
-  <small class="privateHint">予定には追加せず、引落日になったら口座から自動で差し引いて履歴に記録します。</small>
+  <small class="privateHint">クレカ払いで記録した金額はここへ自動加算されます。引落日になったら口座から自動で差し引いて履歴に記録します。手入力で調整することもできます。</small>
   <label>基本のカード引落日<input id="cardDay" type="number" min="1" max="31" value="27" required></label>
   <label class="checkLabel"><input id="cardNextBusiness" type="checkbox" checked> 土日祝なら翌営業日にする</label>
   <label>給料日前日時点で残したい金額<input id="monthlyRemainderGoal" type="number" min="0" inputmode="numeric" placeholder="例：100000"></label>
@@ -718,6 +719,49 @@ function firstFutureMonthlyDate(startDate,day,todayKey){
  if(candidate<=todayKey){m++;if(m===13){m=1;y++}candidate=monthlyDate(y,m,day)}
  return candidate;
 }
+function accountLabel(account){
+ const labels={bank:"口座",paypay:"PayPay",cash:"現金",card:"クレカ"};
+ return labels[account]||account||"";
+}
+function applyAccountTransaction(account,type,amount){
+ amount=Math.max(0,Number(amount)||0);
+ if(account==="card"){
+   if(!data.cardDueDate)data.cardDueDate=dateKey(getNextCardDate(new Date()));
+   if(type==="income")data.card=Math.max(0,(Number(data.card)||0)-amount);
+   else data.card=(Number(data.card)||0)+amount;
+   return data.cardDueDate;
+ }
+ if(data.accounts[account]===undefined)return null;
+ data.accounts[account]+=type==="income"?amount:-amount;
+ return null;
+}
+function reverseAccountTransaction(h){
+ const amount=Math.max(0,Number(h.amount)||0);
+ if(h.account==="card"){
+   // Only change the current bill if this purchase belongs to the current, not-yet-withdrawn cycle.
+   if(!h.cardCycleDueDate || h.cardCycleDueDate===data.cardDueDate){
+     data.card=Math.max(0,(Number(data.card)||0)+(h.type==="income"?amount:-amount));
+   }
+   return;
+ }
+ if(h.account&&data.accounts[h.account]!==undefined){
+   data.accounts[h.account]+=h.type==="income"?-amount:amount;
+ }
+}
+function adjustAccountTransactionAmount(h,newAmount){
+ const oldAmount=Math.max(0,Number(h.amount)||0);
+ newAmount=Math.max(0,Number(newAmount)||0);
+ const diff=newAmount-oldAmount;
+ if(h.account==="card"){
+   if(!h.cardCycleDueDate || h.cardCycleDueDate===data.cardDueDate){
+     data.card=Math.max(0,(Number(data.card)||0)+(h.type==="income"?-diff:diff));
+   }
+   return;
+ }
+ if(h.account&&data.accounts[h.account]!==undefined){
+   data.accounts[h.account]+=h.type==="income"?diff:-diff;
+ }
+}
 function processRecurringTransactions(){
  const todayKey=dateKey(new Date());
  let changed=false;
@@ -729,8 +773,8 @@ function processRecurringTransactions(){
      const occurrence=r.nextDate;
      const already=data.history.some(h=>h.recurringId===r.id&&h.occurrence===occurrence);
      if(!already){
-       data.accounts[r.account]+=r.type==="income"?r.amount:-r.amount;
-       data.history.push({id:Date.now()+guard,date:occurrence,name:r.name,type:r.type,amount:r.amount,account:r.account,hiddenName:!!r.hiddenName,recurringId:r.id,occurrence});
+       const cardCycleDueDate=applyAccountTransaction(r.account,r.type,r.amount);
+       data.history.push({id:Date.now()+guard,date:occurrence,name:r.name,type:r.type,amount:r.amount,account:r.account,hiddenName:!!r.hiddenName,recurringId:r.id,occurrence,cardCycleDueDate});
        changed=true;
      }
      r.nextDate=nextMonthlyDate(occurrence,r.day);
@@ -762,7 +806,7 @@ function forecastAfterNextPayday(now=new Date()){
  for(const r of data.recurring.filter(x=>x.active!==false)){
    let occurrence=r.nextDate;let guard=0;
    while(occurrence&&occurrence<=targetKey&&guard++<24){
-     if(occurrence>=todayKey){
+     if(occurrence>=todayKey && r.account!=="card"){
        const amount=Number(r.amount)||0;
        if(r.type==="income"){lo+=amount;hi+=amount}else{lo-=amount;hi-=amount}
      }
@@ -798,7 +842,7 @@ function projectedSpendableTo(targetDate){
  for(const r of data.recurring.filter(x=>x.active!==false)){
    let occurrence=r.nextDate;let guard=0;
    while(occurrence&&occurrence<=targetKey&&guard++<24){
-     if(occurrence>=todayKey)projected+=r.type==="income"?r.amount:-r.amount;
+     if(occurrence>=todayKey && r.account!=="card")projected+=r.type==="income"?r.amount:-r.amount;
      occurrence=nextMonthlyDate(occurrence,r.day);
    }
  }
@@ -848,7 +892,7 @@ function render(){
  paydayDate.textContent=`${pd.getMonth()+1}/${pd.getDate()} 振込予定`;
  total.innerHTML=yenTotal(t.total); savings.textContent=yen(t.savings); spendable.textContent=yen(t.spendable);
  bank.textContent=yen(data.accounts.bank);paypay.textContent=yen(data.accounts.paypay);cash.textContent=yen(data.accounts.cash);
- card.textContent=Number(data.card)>0?yen(data.card):"未設定";
+ card.textContent=yen(Number(data.card)||0);
  const nextCard=getCardDueDate();cardDate.textContent=`${nextCard.getMonth()+1}/${nextCard.getDate()} 引落予定`;
  adviceText.textContent=chappieAdvice(now);
  savingTotal.textContent=yen(t.savings);
@@ -888,8 +932,8 @@ function render(){
  planList.innerHTML=upcoming.map(p=>`<div class="item"><div><b>${fmt(p.date)}　<span class="${p.hiddenName?"privateName":""}">${p.name}</span></b><br><small>${p.status==="tentative"?"未確定":"確定"}</small></div><div class="amt" data-money>${p.type==="income"?"+":"−"}${p.max?yen(p.amount)+"〜"+yen(p.max):yen(p.amount)}</div><div class="actions"><button onclick="changePlanAmount(${p.id})">金額変更</button><button onclick="completePlan(${p.id})">完了</button><button onclick="cancelPlan(${p.id})">キャンセル</button><button class="privateToggle" onclick="togglePlanName(${p.id})" title="内容の表示を切り替え">${p.hiddenName?"👁 表示":"🙈 隠す"}</button></div></div>`).join("");
  const activeRecurring=data.recurring.filter(r=>r.active!==false);
  recurringBox.style.display=activeRecurring.length?"block":"none";
- recurringList.innerHTML=activeRecurring.map(r=>`<div class="recurringItem"><div><b class="${r.hiddenName?"privateName":""}">${r.name}</b><br><small>毎月${r.day}日・次回 ${fmt(r.nextDate)}・${r.account}</small></div><div class="amt" data-money>${r.type==="income"?"+":"−"}${yen(r.amount)}</div><div class="actions"><button onclick="changeRecurringAmount(${r.id})">金額変更</button><button onclick="stopRecurring(${r.id})">自動登録を停止</button></div></div>`).join("");
- historyList.innerHTML=data.history.length?data.history.slice().reverse().map(h=>`<div class="item"><div><b class="${h.hiddenName?"privateName":""}">${h.name}</b><br><small>${fmt(h.date)}・${h.account||""}${h.recurringId?"・🔁 毎月":""}</small></div><div class="amt" data-money>${h.type==="income"?"+":"−"}${yen(h.amount)}</div><div class="actions"><button onclick="changeHistoryAmount(${h.id})">金額変更</button><button class="privateToggle" onclick="toggleHistoryName(${h.id})" title="内容の表示を切り替え">${h.hiddenName?"👁 表示":"🙈 隠す"}</button><button onclick="deleteHistory(${h.id})">削除</button></div></div>`).join(""):`<div class="card"><small>まだ履歴はありません。</small></div>`;
+ recurringList.innerHTML=activeRecurring.map(r=>`<div class="recurringItem"><div><b class="${r.hiddenName?"privateName":""}">${r.name}</b><br><small>毎月${r.day}日・次回 ${fmt(r.nextDate)}・${accountLabel(r.account)}</small></div><div class="amt" data-money>${r.type==="income"?"+":"−"}${yen(r.amount)}</div><div class="actions"><button onclick="changeRecurringAmount(${r.id})">金額変更</button><button onclick="stopRecurring(${r.id})">自動登録を停止</button></div></div>`).join("");
+ historyList.innerHTML=data.history.length?data.history.slice().reverse().map(h=>`<div class="item"><div><b class="${h.hiddenName?"privateName":""}">${h.name}</b><br><small>${fmt(h.date)}・${accountLabel(h.account)}${h.recurringId?"・🔁 毎月":""}</small></div><div class="amt" data-money>${h.type==="income"?"+":"−"}${yen(h.amount)}</div><div class="actions"><button onclick="changeHistoryAmount(${h.id})">金額変更</button><button class="privateToggle" onclick="toggleHistoryName(${h.id})" title="内容の表示を切り替え">${h.hiddenName?"👁 表示":"🙈 隠す"}</button><button onclick="deleteHistory(${h.id})">削除</button></div></div>`).join(""):`<div class="card"><small>まだ履歴はありません。</small></div>`;
  savingList.innerHTML=data.savings.map(s=>{
  const pct=s.goal?Math.min(100,Math.round(s.amount/s.goal*100)):null;
  return `<div class="item">
@@ -984,13 +1028,13 @@ moneyForm.addEventListener("submit",e=>{
    const day=Number(startDate.slice(8,10));
    // 今日以前の日付なら、最初の1回は通常の記録と同じようにすぐ反映。以降だけ自動。
    if(startDate<=todayKey){
-     data.accounts[acct]+=type==="income"?a:-a;
-     data.history.push({id:rid+1,date:startDate,name:txName.value,type,amount:a,account:acct,hiddenName:txHideName.checked,recurringId:rid,occurrence:startDate});
+     const cardCycleDueDate=applyAccountTransaction(acct,type,a);
+     data.history.push({id:rid+1,date:startDate,name:txName.value,type,amount:a,account:acct,hiddenName:txHideName.checked,recurringId:rid,occurrence:startDate,cardCycleDueDate});
    }
    data.recurring.push({id:rid,startDate,day,name:txName.value,type,amount:a,account:acct,hiddenName:txHideName.checked,active:true,nextDate:firstFutureMonthlyDate(startDate,day,todayKey)});
  }else{
-   data.accounts[acct]+=type==="income"?a:-a;
-   data.history.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,account:acct,hiddenName:txHideName.checked});
+   const cardCycleDueDate=applyAccountTransaction(acct,type,a);
+   data.history.push({id:Date.now(),date:txDate.value,name:txName.value,type,amount:a,account:acct,hiddenName:txHideName.checked,cardCycleDueDate});
  }
  moneyDialog.close();moneyForm.reset();save()
 });
@@ -1001,7 +1045,7 @@ planForm.addEventListener("submit",e=>{
  data.plans.push({id:Date.now(),date:planDate.value,name:planName.value,type:planType.value,amount:mn,max:mx,status:planStatus.value,hiddenName:planHideName.checked});
  planDialog.close();planForm.reset();save()
 });
-window.completePlan=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;let actual=prompt("実際の金額を入力してください",p.amount);if(actual===null)return;actual=+actual;if(!Number.isFinite(actual))return;const acct=prompt("支払元/入金先：bank / paypay / cash","bank");if(!["bank","paypay","cash"].includes(acct))return;data.accounts[acct]+=p.type==="income"?actual:-actual;data.history.push({id:Date.now(),date:p.date,name:p.name,type:p.type,amount:actual,account:acct,hiddenName:!!p.hiddenName});p.status="completed";save()};
+window.completePlan=id=>{const p=data.plans.find(x=>x.id===id);if(!p)return;let actual=prompt("実際の金額を入力してください",p.amount);if(actual===null)return;actual=+actual;if(!Number.isFinite(actual))return;const acct=prompt("支払元/入金先：bank / paypay / cash / card","bank");if(!["bank","paypay","cash","card"].includes(acct))return;const cardCycleDueDate=applyAccountTransaction(acct,p.type,actual);data.history.push({id:Date.now(),date:p.date,name:p.name,type:p.type,amount:actual,account:acct,hiddenName:!!p.hiddenName,cardCycleDueDate});p.status="completed";save()};
 savingForm.addEventListener("submit",e=>{
  if(e.submitter?.value==="cancel")return;
  e.preventDefault();
@@ -1021,17 +1065,14 @@ window.changeHistoryAmount=id=>{
  const h=data.history.find(x=>x.id===id);if(!h)return;
  const raw=prompt(`${h.name} の金額を変更`,h.amount);if(raw===null)return;
  const n=Number(raw);if(!Number.isFinite(n)||n<0){alert("正しい金額を入力してください。");return}
- const diff=n-h.amount;
- if(h.account&&data.accounts[h.account]!==undefined)data.accounts[h.account]+=h.type==="income"?diff:-diff;
+ adjustAccountTransactionAmount(h,n);
  h.amount=n;save();
 };
 window.deleteHistory=id=>{
  const h=data.history.find(x=>x.id===id);if(!h)return;
  const label=h.hiddenName?"この履歴":`「${h.name}」`;
- if(!confirm(`${label} を削除しますか？\n※この記録で増減した ${yen(h.amount)} も ${h.account||"残高"} から元に戻します。`))return;
- if(h.account&&data.accounts[h.account]!==undefined){
-   data.accounts[h.account]+=h.type==="income"?-h.amount:h.amount;
- }
+ if(!confirm(`${label} を削除しますか？\n※この記録で増減した ${yen(h.amount)} も ${accountLabel(h.account)||"残高"} から元に戻します。`))return;
+ reverseAccountTransaction(h);
  data.history=data.history.filter(x=>x.id!==id);
  save();
 };
@@ -1128,6 +1169,7 @@ render();
   }, { once:true });
 })();
 
+// v1.10.1: credit card can be selected as a payment source; purchases add to the next card bill
 // v1.9.5: automatic credit-card withdrawal (not stored as a plan)
 // v1.9.3: Chappie advice + card business-day adjustment
 // v1.9.2: PWA / Home Screen app support
