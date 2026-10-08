@@ -1,4 +1,4 @@
-const CACHE_NAME = "my-money-v1.10.1";
+const CACHE_NAME = "my-money-v1.13.0";
 const APP_SHELL = [
   "./",
   "./index.html",
