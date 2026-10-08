@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<!-- My Money v1.18.0 -->
+<!-- My Money v1.19.0 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#dff3ff">
@@ -330,7 +330,7 @@ body,button,input,select,textarea{
 @media (max-height:650px){#launchSplash .launchIcon{width:80px;height:80px;border-radius:20px}#launchSplash .launchTitle{font-size:24px;margin-top:14px}}
 
 
-/* v1.18.0 - Credit forecast meter (screenshot inspired) */
+/* v1.19.0 - Credit forecast meter (screenshot inspired) */
 .cardForecastMeter{padding:20px 20px 17px!important;margin-top:12px!important;background:#fff;border-radius:19px}
 .cfmTop{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#626262;font-size:15px;font-weight:650}
 .cfmBadge{background:#fae5dd;color:#8f3d17;border-radius:99px;padding:7px 11px;font-size:12px;font-weight:750;white-space:nowrap}
@@ -356,7 +356,7 @@ body,button,input,select,textarea{
 .subsActions{display:flex;gap:10px}.subsActions button{flex:1}
 .subsHelp{padding:0 6px 20px}
 
-/* v1.18.0: compact credit meter + two-column asset overview */
+/* v1.19.0: compact credit meter + two-column asset overview */
 #home .hero{padding:14px 13px 12px}
 #home .heroTwoColumns{display:grid;grid-template-columns:1fr 1fr;align-items:center}
 #home .heroMetric{min-width:0;padding:6px 4px;text-align:center}
@@ -380,6 +380,12 @@ body,button,input,select,textarea{
 #home .cfmAmountRow .cfmAmount{min-width:0;white-space:nowrap;font-size:clamp(25px,7vw,35px)}
 #home .cfmAmountRow .cfmDueDate{flex-shrink:0;margin:0;text-align:right;font-size:10px;white-space:nowrap}
 @media(max-width:360px){#home .cfmAmountRow .cfmDueDate{font-size:9px}#home .cfmAmountRow .cfmAmount{font-size:25px}}
+
+/* v1.19.0: emphasize total assets, slightly de-emphasize spendable money */
+#home .heroTwoColumns{grid-template-columns:1.12fr .88fr}
+#home .heroMetric #total{font-size:clamp(25px,6.8vw,37px)!important;letter-spacing:-1.2px!important}
+#home .heroMetric #spendable{font-size:clamp(17px,4.5vw,24px)!important;letter-spacing:-.5px!important}
+@media(max-width:370px){#home .heroMetric #total{font-size:clamp(23px,6.5vw,28px)!important}#home .heroMetric #spendable{font-size:17px!important}}
 </style>
 </head>
 <body>
@@ -1426,7 +1432,7 @@ render();
   }, { once:true });
 })();
 
-// v1.18.0: card forecast meter + configurable unbilled subscriptions
+// v1.19.0: card forecast meter + configurable unbilled subscriptions
 // v1.11.0: ChatGPT/Supabase live bridge — periodically pulls newer cloud updates while app is open
 // v1.10.2: card guard — October limit ¥20,000, normal limit ¥10,000; card use immediately reduces spendable money
 // v1.10.1: credit card can be selected as a payment source; purchases add to the next card bill
