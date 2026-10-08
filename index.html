@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<!-- My Money v1.19.0 -->
+<!-- My Money v1.21.0 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#dff3ff">
@@ -330,7 +330,7 @@ body,button,input,select,textarea{
 @media (max-height:650px){#launchSplash .launchIcon{width:80px;height:80px;border-radius:20px}#launchSplash .launchTitle{font-size:24px;margin-top:14px}}
 
 
-/* v1.19.0 - Credit forecast meter (screenshot inspired) */
+/* v1.21.0 - Credit forecast meter (screenshot inspired) */
 .cardForecastMeter{padding:20px 20px 17px!important;margin-top:12px!important;background:#fff;border-radius:19px}
 .cfmTop{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#626262;font-size:15px;font-weight:650}
 .cfmBadge{background:#fae5dd;color:#8f3d17;border-radius:99px;padding:7px 11px;font-size:12px;font-weight:750;white-space:nowrap}
@@ -356,7 +356,7 @@ body,button,input,select,textarea{
 .subsActions{display:flex;gap:10px}.subsActions button{flex:1}
 .subsHelp{padding:0 6px 20px}
 
-/* v1.19.0: compact credit meter + two-column asset overview */
+/* v1.21.0: compact credit meter + two-column asset overview */
 #home .hero{padding:14px 13px 12px}
 #home .heroTwoColumns{display:grid;grid-template-columns:1fr 1fr;align-items:center}
 #home .heroMetric{min-width:0;padding:6px 4px;text-align:center}
@@ -381,11 +381,16 @@ body,button,input,select,textarea{
 #home .cfmAmountRow .cfmDueDate{flex-shrink:0;margin:0;text-align:right;font-size:10px;white-space:nowrap}
 @media(max-width:360px){#home .cfmAmountRow .cfmDueDate{font-size:9px}#home .cfmAmountRow .cfmAmount{font-size:25px}}
 
-/* v1.19.0: emphasize total assets, slightly de-emphasize spendable money */
+/* v1.21.0: emphasize total assets, slightly de-emphasize spendable money */
 #home .heroTwoColumns{grid-template-columns:1.12fr .88fr}
 #home .heroMetric #total{font-size:clamp(25px,6.8vw,37px)!important;letter-spacing:-1.2px!important}
 #home .heroMetric #spendable{font-size:clamp(17px,4.5vw,24px)!important;letter-spacing:-.5px!important}
 @media(max-width:370px){#home .heroMetric #total{font-size:clamp(23px,6.5vw,28px)!important}#home .heroMetric #spendable{font-size:17px!important}}
+/* v1.21.0: total assets remains visually larger than card forecast amount */
+#home .heroMetric #total{font-size:clamp(28px,7.5vw,40px)!important}
+#home .heroMetric #spendable{font-size:clamp(17px,4.5vw,23px)!important}
+#home .cfmAmountRow .cfmAmount{font-size:clamp(21px,5.6vw,28px)!important;letter-spacing:-.6px!important}
+@media(max-width:370px){#home .heroMetric #total{font-size:clamp(26px,7.3vw,30px)!important}#home .cfmAmountRow .cfmAmount{font-size:21px!important}}
 </style>
 </head>
 <body>
@@ -575,7 +580,7 @@ body,button,input,select,textarea{
   <label>次回のカード引落額<input id="cardAmount" type="number" min="0" inputmode="numeric" placeholder="例：12031"></label>
   <small class="privateHint">クレカ払いで記録した金額はここへ自動加算されます。引落日になったら口座から自動で差し引いて履歴に記録します。手入力で調整することもできます。</small>
 <button type="button" class="secondary" id="openSubscriptionsFromSettings">💳 サブスクを管理する ›</button>
-  <small class="privateHint">各サブスクの月額・請求日・請求済み状態を別ページで設定できます。</small>
+  <small class="privateHint">毎月1日に全サブスクが請求見込みへ自動反映されます。カード明細に載ったものは「請求済み」にして二重計上を防いでください。</small>
   <label>通常のクレカ上限<input id="cardLimitDefault" type="number" min="0" inputmode="numeric" value="10000"></label>
   <label>今月だけのクレカ上限<input id="cardLimitThisMonth" type="number" min="0" inputmode="numeric" value="20000"></label>
   <small class="privateHint">今月だけの上限は翌月になると自動で解除され、通常の上限に戻ります。今月は2万円、通常は1万円の設定です。</small>
@@ -920,21 +925,44 @@ function currentCardLimit(now=new Date()){
  }
  return normal;
 }
+// Default subscription catalog. "paid" means already included in the card balance.
+const DEFAULT_SUBSCRIPTIONS=[
+ {id:"ilove-fc",name:"＝LOVE FC",amount:550,day:null,paid:true},
+ {id:"notequal-fc",name:"≠ME FC",amount:550,day:null,paid:true},
+ {id:"hinata-talk",name:"日向坂46 トーク",amount:616,day:null,paid:true},
+ {id:"ilove-kiara",name:"＝LOVE Link（樹愛羅）",amount:550,day:null,paid:true},
+ {id:"notequal-link",name:"≠ME Link",amount:550,day:null,paid:true},
+ {id:"lemino",name:"Lemino",amount:200,day:null,paid:true},
+ {id:"maika",name:"＝LOVE Link（舞香）",amount:550,day:null,paid:false},
+ {id:"apple",name:"Apple Music",amount:680,day:null,paid:false},
+ {id:"yt780",name:"YouTube Premium（780円）",amount:780,day:28,paid:false},
+ {id:"yt1280",name:"YouTube Premium（1,280円）",amount:1280,day:29,paid:false},
+ {id:"chatgpt",name:"ChatGPT Plus",amount:3000,day:null,paid:false}
+];
 function ensureSubscriptions(){
+ const current=monthKey();
  if(!Array.isArray(data.settings.subscriptions)){
-   const old=data.settings.cardPendingSubscriptionsMonth===monthKey()?Math.max(0,Number(data.settings.cardPendingSubscriptions)||0):0;
-   data.settings.subscriptions=old===6290?[
-     {id:"maika",name:"イコラブLink（舞香）",amount:550,day:null,paid:false},
-     {id:"apple",name:"Apple Music",amount:680,day:null,paid:false},
-     {id:"yt780",name:"YouTube Premium（780円）",amount:780,day:28,paid:false},
-     {id:"yt1280",name:"YouTube Premium（1,280円）",amount:1280,day:29,paid:false},
-     {id:"chatgpt",name:"ChatGPT Plus",amount:3000,day:null,paid:false}
-   ]:old>0?[{id:"legacy",name:"以前の未請求サブスク合計",amount:old,day:null,paid:false}]:[];
-   data.settings.subscriptionsMonth=monthKey();
+   // Seed the full catalog for existing users without a saved subscription list.
+   data.settings.subscriptions=DEFAULT_SUBSCRIPTIONS.map(x=>({...x}));
+   data.settings.subscriptionsMonth=current;
+   data.settings.fullSubscriptionsSeeded=true;
+   localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+ }else if(!data.settings.fullSubscriptionsSeeded){
+   // Preserve edited amounts, days and paid states from older versions.
+   const existing=data.settings.subscriptions;
+   const existingIds=new Set(existing.map(x=>x.id));
+   for(const item of DEFAULT_SUBSCRIPTIONS){
+     if(!existingIds.has(item.id))existing.push({...item});
+   }
+   data.settings.fullSubscriptionsSeeded=true;
+   localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
  }
- if(data.settings.subscriptionsMonth!==monthKey()){
+ if(data.settings.subscriptionsMonth!==current){
+   // A new month: all subscriptions count toward the new month's forecast.
    data.settings.subscriptions=data.settings.subscriptions.map(x=>({...x,paid:false}));
-   data.settings.subscriptionsMonth=monthKey();
+   data.settings.subscriptionsMonth=current;
+   localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+   scheduleCloudSave();
  }
 }
 function cardPendingAmount(now=new Date()){
@@ -1432,7 +1460,7 @@ render();
   }, { once:true });
 })();
 
-// v1.19.0: card forecast meter + configurable unbilled subscriptions
+// v1.21.0: card forecast meter + configurable unbilled subscriptions
 // v1.11.0: ChatGPT/Supabase live bridge — periodically pulls newer cloud updates while app is open
 // v1.10.2: card guard — October limit ¥20,000, normal limit ¥10,000; card use immediately reduces spendable money
 // v1.10.1: credit card can be selected as a payment source; purchases add to the next card bill
